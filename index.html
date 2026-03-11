@@ -1341,55 +1341,69 @@ let voiceRec = null;
 let voiceActive = false;
 let voiceBase = '';
 let voiceUsed = false;
+let voiceGotResult = false;
+let voiceTimeout = null;
+
+const isMobile = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
 
 function initVoiceRec() {
-    if (voiceRec) return true;
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SR) { alert('当前浏览器不支持语音输入，请使用 Chrome 或 Safari'); return false; }
-    voiceRec = new SR();
-    voiceRec.lang = 'zh-CN';
-    voiceRec.interimResults = true;
-    voiceRec.continuous = false;
-    voiceRec.maxAlternatives = 3;
-    voiceRec.onresult = function(e) {
-        if (!voiceActive) return;
-        let interim = '', final = '';
-        for (let i = 0; i < e.results.length; i++) {
-            if (e.results[i].isFinal) {
-                final += voicePickBest(e.results[i]);
-            } else {
-                interim += e.results[i][0].transcript;
+    if (!SR) return false;
+    if (voiceRec) return true;
+    try {
+        voiceRec = new SR();
+        voiceRec.lang = 'zh-CN';
+        voiceRec.interimResults = true;
+        voiceRec.continuous = false;
+        voiceRec.maxAlternatives = 3;
+        voiceRec.onresult = function(e) {
+            if (!voiceActive) return;
+            voiceGotResult = true;
+            if (voiceTimeout) { clearTimeout(voiceTimeout); voiceTimeout = null; }
+            let interim = '', final = '';
+            for (let i = 0; i < e.results.length; i++) {
+                if (e.results[i].isFinal) {
+                    final += voicePickBest(e.results[i]);
+                } else {
+                    interim += e.results[i][0].transcript;
+                }
             }
-        }
-        if (final) voiceBase = (voiceBase ? voiceBase + ' ' : '') + final;
-        const combined = (voiceBase ? voiceBase : '') + (interim ? (voiceBase ? ' ' : '') + interim : '');
-        $('textSearch').value = combined;
-        textQuery = combined;
-        $('textSearchClear').style.display = combined ? '' : 'none';
-        $('kwFilter').value = '';
-        $('kwFilterClear').style.display = 'none';
-        voiceUsed = true;
-        refreshAll();
-    };
-    voiceRec.onerror = function(e) {
-        if (e.error === 'not-allowed') {
-            alert('请允许麦克风权限。如果使用非 HTTPS 网站，每次都需要允许。');
-            stopVoice();
-        } else if (e.error === 'no-speech') {
-            // silence — will auto-restart via onend
-        } else if (e.error !== 'aborted') {
-            stopVoice();
-        }
-    };
-    voiceRec.onend = function() {
-        if (voiceActive) {
-            setTimeout(function() {
-                if (!voiceActive) return;
-                try { voiceRec.start(); } catch(ex) { stopVoice(); }
-            }, 100);
-        }
-    };
-    return true;
+            if (final) voiceBase = (voiceBase ? voiceBase + ' ' : '') + final;
+            const combined = (voiceBase ? voiceBase : '') + (interim ? (voiceBase ? ' ' : '') + interim : '');
+            $('textSearch').value = combined;
+            textQuery = combined;
+            $('textSearchClear').style.display = combined ? '' : 'none';
+            $('kwFilter').value = '';
+            $('kwFilterClear').style.display = 'none';
+            voiceUsed = true;
+            refreshAll();
+        };
+        voiceRec.onerror = function(e) {
+            if (e.error === 'not-allowed') {
+                stopVoice();
+                voiceFallbackToKeyboard('请允许麦克风权限，或使用键盘自带的语音输入 🎙');
+            } else if (e.error === 'no-speech') {
+                // will restart via onend
+            } else if (e.error !== 'aborted') {
+                if (!voiceGotResult) {
+                    stopVoice();
+                    voiceFallbackToKeyboard('语音识别不可用，请使用键盘自带的语音输入 🎙');
+                }
+            }
+        };
+        voiceRec.onend = function() {
+            if (voiceActive) {
+                setTimeout(function() {
+                    if (!voiceActive) return;
+                    try { voiceRec.start(); } catch(ex) { stopVoice(); }
+                }, 100);
+            }
+        };
+        return true;
+    } catch(ex) {
+        voiceRec = null;
+        return false;
+    }
 }
 
 function voicePickBest(result) {
@@ -1431,19 +1445,54 @@ function fuzzyIncludes(text, term) {
     return false;
 }
 
+function voiceFallbackToKeyboard(msg) {
+    const el = $('textSearch');
+    el.focus();
+    el.setAttribute('placeholder', msg);
+    setTimeout(function() {
+        el.setAttribute('placeholder', '输入文字或多个词组用空格隔开，或点击右下角 🎙 语音搜索');
+    }, 5000);
+}
+
 function toggleVoice() {
     if (voiceActive) { stopVoice(); return; }
-    if (!initVoiceRec()) return;
+
+    if (isMobile && !initVoiceRec()) {
+        voiceFallbackToKeyboard('请点击键盘上的 🎙 按钮进行语音输入');
+        return;
+    }
+    if (!isMobile && !initVoiceRec()) {
+        alert('当前浏览器不支持语音输入，请使用 Chrome 或 Edge');
+        return;
+    }
+
     voiceBase = $('textSearch').value;
-    try { voiceRec.start(); } catch { voiceRec = null; if (!initVoiceRec()) return; voiceRec.start(); }
+    voiceGotResult = false;
+    try { voiceRec.start(); } catch {
+        voiceRec = null;
+        if (!initVoiceRec()) {
+            if (isMobile) voiceFallbackToKeyboard('请点击键盘上的 🎙 按钮进行语音输入');
+            else alert('语音输入启动失败');
+            return;
+        }
+        try { voiceRec.start(); } catch { voiceFallbackToKeyboard('语音启动失败，请用键盘语音输入'); return; }
+    }
     voiceActive = true;
     $('fabVoice').classList.add('recording');
     $('fabVoiceLabel').textContent = '停止';
     $('voiceIndicator').classList.add('on');
+
+    voiceTimeout = setTimeout(function() {
+        if (voiceActive && !voiceGotResult) {
+            stopVoice();
+            voiceFallbackToKeyboard('未检测到语音，请使用键盘上的 🎙 按钮语音输入');
+        }
+    }, 4000);
 }
 
 function stopVoice() {
     voiceActive = false;
+    if (voiceTimeout) { clearTimeout(voiceTimeout); voiceTimeout = null; }
     const snap = $('textSearch').value;
     voiceBase = snap;
     textQuery = snap;
