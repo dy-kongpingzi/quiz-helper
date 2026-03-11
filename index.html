@@ -1,0 +1,2038 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>快速答题助手</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Microsoft YaHei', sans-serif;
+            background: linear-gradient(135deg, #f5f7fa 0%, #e4e9f2 100%);
+            color: #333; min-height: 100vh;
+        }
+        .container { max-width: 1100px; margin: 0 auto; padding: 32px 24px; }
+        header { text-align: center; margin-bottom: 28px; }
+        header h1 { font-size: 28px; color: #1a1a2e; margin-bottom: 4px; letter-spacing: 1px; }
+        header p { color: #888; font-size: 13px; }
+
+        .upload-zone {
+            border: 2.5px dashed #c0c4cc; border-radius: 14px; padding: 44px 24px;
+            text-align: center; background: #fff; cursor: pointer;
+            transition: all 0.3s; margin-bottom: 22px;
+        }
+        .upload-zone:hover, .upload-zone.dragover { border-color: #409eff; background: #ecf5ff; }
+        .upload-zone .icon { font-size: 44px; margin-bottom: 10px; }
+        .upload-zone p { color: #555; font-size: 15px; }
+        .upload-zone .hint { color: #aaa; font-size: 12px; margin-top: 6px; }
+
+        .card {
+            background: #fff; border-radius: 14px; padding: 22px 26px;
+            margin-bottom: 20px; box-shadow: 0 2px 12px rgba(0,0,0,0.06); display: none;
+        }
+        .stat-row { display: flex; gap: 32px; flex-wrap: wrap; align-items: center; }
+        .stat-item { display: flex; align-items: center; gap: 6px; }
+        .stat-item .label { color: #888; font-size: 13px; }
+        .stat-item .value { font-size: 20px; font-weight: 700; color: #409eff; }
+        .dup-info { margin-top: 12px; padding: 10px 14px; background: #fdf6ec; border-radius: 8px; color: #b88230; font-size: 12px; display: none; }
+        .add-info { margin-top: 12px; padding: 10px 14px; background: #f0f9eb; border-radius: 8px; color: #4ea832; font-size: 12px; display: none; }
+
+        .section-title { font-size: 16px; font-weight: 600; margin-bottom: 12px; color: #1a1a2e; display: flex; align-items: center; gap: 7px; }
+        .legend { font-size: 11px; color: #aaa; font-weight: normal; margin-left: 8px; }
+        .section-clear-btn {
+            margin-left: auto; padding: 3px 10px; background: transparent; border: 1px solid #dcdfe6;
+            border-radius: 10px; font-size: 11px; cursor: pointer; color: #999;
+            transition: all 0.2s; white-space: nowrap;
+        }
+        .section-clear-btn:hover { border-color: #f56c6c; color: #f56c6c; background: #fef0f0; }
+
+        .text-search-wrap { position: relative; margin-bottom: 16px; }
+        .text-search-wrap input {
+            width: 100%; padding: 11px 36px 11px 16px; border: 2px solid #d0d5dd;
+            border-radius: 12px; font-size: 15px; outline: none; transition: border-color 0.3s;
+            background: #fcfcfd;
+        }
+        .text-search-wrap input:focus { border-color: #409eff; background: #fff; }
+        .text-search-wrap input::placeholder { color: #bbb; }
+        .text-search-clear {
+            position: absolute; right: 12px; top: 50%; transform: translateY(-50%);
+            cursor: pointer; color: #c0c4cc; font-size: 16px; display: none; padding: 2px 4px;
+        }
+        .text-search-clear:hover { color: #f56c6c; }
+
+        .selected-bar { display: none; margin-bottom: 12px; }
+        .selected-bar-inner { display: flex; align-items: center; gap: 8px; padding: 8px 14px; background: #ecf5ff; border-radius: 10px; flex-wrap: wrap; }
+        .selected-bar-inner .lbl { color: #409eff; font-weight: 600; font-size: 12px; white-space: nowrap; }
+        .sel-chip { display: inline-flex; align-items: center; gap: 3px; padding: 3px 10px; background: #409eff; color: #fff; border-radius: 12px; font-size: 11px; cursor: pointer; transition: background 0.2s; }
+        .sel-chip:hover { background: #2b7de0; }
+        .clear-btn { margin-left: auto; padding: 4px 12px; background: transparent; border: 1px solid #409eff; color: #409eff; border-radius: 12px; font-size: 11px; cursor: pointer; white-space: nowrap; transition: all 0.2s; }
+        .clear-btn:hover { background: #409eff; color: #fff; }
+
+        .scope-row { display: none; align-items: center; gap: 10px; margin-bottom: 12px; padding: 8px 14px; background: #f9f9fb; border-radius: 10px; flex-wrap: wrap; }
+        .scope-row .scope-lbl { font-size: 12px; color: #666; white-space: nowrap; }
+        .scope-btn { padding: 5px 18px; border: 1.5px solid #dcdfe6; border-radius: 18px; background: #fff; font-size: 12px; cursor: pointer; transition: all 0.2s; color: #666; font-weight: 500; }
+        .scope-btn.on { background: #409eff; border-color: #409eff; color: #fff; }
+        .scope-btn:hover:not(.on) { border-color: #409eff; color: #409eff; }
+        .scope-hint { font-size: 11px; color: #aaa; margin-left: 4px; }
+
+        .num-section { display: flex; gap: 20px; margin-bottom: 14px; padding: 14px 16px; background: #fafbfc; border-radius: 10px; align-items: flex-start; flex-wrap: wrap; }
+        .numpad-area { flex-shrink: 0; }
+        .num-input-row { display: flex; align-items: center; gap: 6px; margin-bottom: 8px; }
+        .num-input-row input { width: 100px; padding: 6px 10px; border: 1.5px solid #dcdfe6; border-radius: 8px; font-family: 'Cascadia Code','Consolas',monospace; font-size: 16px; outline: none; color: #409eff; font-weight: 600; transition: border-color 0.3s; }
+        .num-input-row input:focus { border-color: #409eff; }
+        .num-input-row input::placeholder { color: #ccc; font-weight: 400; font-size: 12px; }
+        .num-unit-tag { padding: 4px 10px; background: #e6a23c; color: #fff; border-radius: 10px; font-size: 12px; font-weight: 500; display: none; }
+        .num-clear-x { cursor: pointer; color: #c0c4cc; font-size: 16px; padding: 0 4px; display: none; transition: color 0.2s; }
+        .num-clear-x:hover { color: #f56c6c; }
+        .numpad { display: grid; grid-template-columns: repeat(3, 46px); gap: 5px; }
+        .numpad button { width: 46px; height: 38px; border: 1px solid #e0e0e0; border-radius: 8px; background: #fff; font-size: 16px; cursor: pointer; transition: all 0.15s; color: #333; font-weight: 500; }
+        .numpad button:hover { background: #ecf5ff; border-color: #a0cfff; }
+        .numpad button:active { background: #d9ecff; transform: scale(0.95); }
+        .unit-area { flex: 1; min-width: 200px; }
+        .unit-area-title { font-size: 12px; color: #999; margin-bottom: 8px; }
+        .unit-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+        .unit-chip { padding: 5px 12px; border: 1px solid #e0e0e0; border-radius: 14px; font-size: 12px; cursor: pointer; background: #fff; transition: all 0.2s; color: #555; }
+        .unit-chip:hover { border-color: #e6a23c; color: #e6a23c; }
+        .unit-chip.on { background: #e6a23c; color: #fff; border-color: #e6a23c; }
+
+        .kw-filter-wrap { position: relative; margin-bottom: 12px; }
+        .kw-filter-wrap input { width: 100%; padding: 8px 32px 8px 14px; border: 1.5px solid #dcdfe6; border-radius: 10px; font-size: 12px; outline: none; transition: border-color 0.3s; }
+        .kw-filter-wrap input:focus { border-color: #409eff; }
+        .kw-filter-clear { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); cursor: pointer; color: #c0c4cc; font-size: 14px; display: none; padding: 2px 4px; }
+        .kw-filter-clear:hover { color: #f56c6c; }
+
+        .kw-box { display: flex; flex-wrap: wrap; gap: 7px; max-height: 400px; overflow-y: auto; padding: 2px; align-content: flex-start; }
+        .kw-chip { display: inline-flex; align-items: center; gap: 4px; padding: 5px 13px; border-radius: 18px; font-size: 12px; cursor: pointer; transition: all 0.2s; border: 1.5px solid; user-select: none; }
+        .kw-chip .src { font-size: 9px; opacity: 0.6; }
+        .kw-chip.f1 { background: #f0f9eb; border-color: #b3e19d; color: #4ea832; }
+        .kw-chip.f2 { background: #fdf6ec; border-color: #f3d19e; color: #cf8e1e; }
+        .kw-chip.f3 { background: #fef0f0; border-color: #fab6b6; color: #e04848; }
+        .kw-chip.active { background: #409eff !important; border-color: #409eff !important; color: #fff !important; box-shadow: 0 3px 10px rgba(64,158,255,0.3); }
+        .kw-chip:hover:not(.active) { transform: translateY(-1px); box-shadow: 0 2px 6px rgba(0,0,0,0.08); }
+        .kw-visible-count { font-size: 11px; color: #bbb; margin-bottom: 8px; }
+        .kw-letter-hdr {
+            width: 100%; font-size: 12px; font-weight: 700; color: #409eff;
+            padding: 8px 4px 3px; margin-top: 2px;
+            border-bottom: 1px solid #ebeef5;
+        }
+        .kw-letter-hdr:first-child { margin-top: 0; padding-top: 2px; }
+
+        .results-hdr { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+        .results-cnt { color: #888; font-size: 13px; }
+        .q-list { display: flex; flex-direction: column; gap: 10px; }
+        .q-card { border: 1.5px solid #ebeef5; border-radius: 10px; padding: 14px 18px; transition: all 0.2s; }
+        .q-card:hover { border-color: #a0cfff; box-shadow: 0 2px 8px rgba(64,158,255,0.1); }
+        .q-num { font-size: 11px; color: #b0b0b0; margin-bottom: 5px; }
+        .q-text { font-size: 14px; line-height: 1.7; margin-bottom: 10px; color: #222; }
+        .q-text .hl { background: #ffe082; padding: 1px 3px; border-radius: 3px; }
+        .a-wrap { cursor: pointer; user-select: none; }
+        .a-lbl { font-size: 12px; color: #409eff; font-weight: 600; margin-bottom: 5px; display: flex; align-items: center; gap: 5px; }
+        .a-lbl .arrow { display: inline-block; transition: transform 0.2s; font-size: 10px; }
+        .a-wrap.open .arrow { transform: rotate(90deg); }
+        .a-body { font-size: 14px; line-height: 1.7; color: #555; background: #f5f7fa; padding: 10px 14px; border-radius: 8px; display: none; white-space: pre-line; }
+        .a-body .hl { background: #c8e6c9; padding: 1px 3px; border-radius: 3px; }
+        .a-wrap.open .a-body { display: block; }
+        .load-more { text-align: center; padding: 12px; }
+        .load-more button { padding: 7px 26px; background: #409eff; color: #fff; border: none; border-radius: 18px; font-size: 13px; cursor: pointer; transition: background 0.2s; }
+        .load-more button:hover { background: #2b7de0; }
+        .no-result { text-align: center; padding: 36px 0; color: #bbb; font-size: 14px; }
+        .kw-box::-webkit-scrollbar { width: 5px; }
+        .kw-box::-webkit-scrollbar-thumb { background: #ccc; border-radius: 3px; }
+        .footer-clear { text-align: right; padding: 16px 0 8px; opacity: 0.35; transition: opacity 0.3s; }
+        .footer-clear:hover { opacity: 0.7; }
+        .footer-clear span { cursor: pointer; font-size: 11px; color: #999; border-bottom: 1px dashed #ccc; padding-bottom: 1px; }
+        /* ===== Editor Modal ===== */
+        .modal-overlay {
+            display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.45);
+            z-index: 1000; justify-content: center; align-items: flex-start; padding: 40px 16px;
+            overflow-y: auto;
+        }
+        .modal-overlay.open { display: flex; }
+        .modal-box {
+            background: #fff; border-radius: 16px; width: 100%; max-width: 780px;
+            box-shadow: 0 8px 40px rgba(0,0,0,0.18); animation: modalIn 0.2s;
+        }
+        @keyframes modalIn { from { opacity: 0; transform: translateY(-20px); } to { opacity: 1; transform: translateY(0); } }
+        .modal-hdr {
+            display: flex; align-items: center; padding: 18px 24px; border-bottom: 1px solid #ebeef5;
+        }
+        .modal-hdr h3 { font-size: 17px; color: #1a1a2e; flex: 1; }
+        .modal-close { cursor: pointer; font-size: 22px; color: #c0c4cc; padding: 4px 8px; border-radius: 6px; transition: all 0.2s; border: none; background: none; }
+        .modal-close:hover { color: #f56c6c; background: #fef0f0; }
+        .modal-body { padding: 20px 24px; }
+        .modal-footer { padding: 14px 24px; border-top: 1px solid #ebeef5; display: flex; justify-content: flex-end; gap: 10px; }
+        .ed-label { font-size: 12px; font-weight: 600; color: #666; margin-bottom: 6px; display: flex; align-items: center; gap: 6px; }
+        .ed-label .hint { font-weight: 400; color: #bbb; font-size: 11px; }
+        .ed-textarea {
+            width: 100%; min-height: 80px; padding: 10px 14px; border: 1.5px solid #dcdfe6;
+            border-radius: 10px; font-size: 13px; line-height: 1.7; resize: vertical;
+            outline: none; transition: border-color 0.3s; font-family: inherit;
+        }
+        .ed-textarea:focus { border-color: #409eff; }
+        .ed-field { margin-bottom: 16px; }
+        .ed-kw-section { margin-top: 8px; padding: 14px 16px; background: #f9f9fb; border-radius: 10px; }
+        .ed-kw-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; min-height: 28px; }
+        .ed-kw-chip {
+            display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px; border-radius: 14px;
+            font-size: 12px; background: #ecf5ff; border: 1px solid #b3d8ff; color: #409eff; cursor: default;
+        }
+        .ed-kw-chip .ed-kw-x { cursor: pointer; font-size: 13px; margin-left: 2px; opacity: 0.6; }
+        .ed-kw-chip .ed-kw-x:hover { opacity: 1; color: #f56c6c; }
+        .ed-add-row { display: flex; gap: 6px; margin-top: 10px; }
+        .ed-add-row input {
+            flex: 1; padding: 6px 12px; border: 1.5px solid #dcdfe6; border-radius: 8px;
+            font-size: 12px; outline: none; transition: border-color 0.3s;
+        }
+        .ed-add-row input:focus { border-color: #409eff; }
+        .ed-btn {
+            padding: 6px 16px; border-radius: 8px; font-size: 12px; cursor: pointer;
+            border: 1.5px solid; transition: all 0.2s; font-weight: 500;
+        }
+        .ed-btn-primary { background: #409eff; color: #fff; border-color: #409eff; }
+        .ed-btn-primary:hover { background: #2b7de0; border-color: #2b7de0; }
+        .ed-btn-default { background: #fff; color: #666; border-color: #dcdfe6; }
+        .ed-btn-default:hover { border-color: #409eff; color: #409eff; }
+        .ed-btn-danger { background: #fff; color: #f56c6c; border-color: #fbc4c4; }
+        .ed-btn-danger:hover { background: #fef0f0; border-color: #f56c6c; }
+        .ed-select-hint {
+            font-size: 11px; color: #67c23a; margin-top: 6px; padding: 6px 10px;
+            background: #f0f9eb; border-radius: 6px; display: none;
+        }
+        .q-card .q-edit-btn {
+            float: right; padding: 2px 10px; border: 1px solid #dcdfe6; border-radius: 6px;
+            font-size: 11px; cursor: pointer; color: #999; background: #fff; transition: all 0.2s;
+        }
+        .q-card .q-edit-btn:hover { border-color: #409eff; color: #409eff; }
+        /* ===== Keyword Manager Modal ===== */
+        .kwm-list { max-height: 400px; overflow-y: auto; }
+        .kwm-row {
+            display: flex; align-items: center; gap: 8px; padding: 8px 10px;
+            border-bottom: 1px solid #f0f0f0; transition: background 0.15s;
+        }
+        .kwm-row:hover { background: #f9f9fb; }
+        .kwm-word { flex: 1; font-size: 13px; color: #333; }
+        .kwm-cnt { font-size: 11px; color: #aaa; min-width: 30px; text-align: right; }
+        .kwm-actions { display: flex; gap: 4px; }
+        .kwm-btn {
+            padding: 3px 8px; border: 1px solid #dcdfe6; border-radius: 6px; font-size: 11px;
+            cursor: pointer; background: #fff; color: #666; transition: all 0.2s;
+        }
+        .kwm-btn:hover { border-color: #409eff; color: #409eff; }
+        .kwm-btn.danger:hover { border-color: #f56c6c; color: #f56c6c; }
+        .kwm-search { width: 100%; padding: 8px 14px; border: 1.5px solid #dcdfe6; border-radius: 10px; font-size: 13px; outline: none; margin-bottom: 12px; }
+        .kwm-search:focus { border-color: #409eff; }
+        .kwm-empty { text-align: center; padding: 24px; color: #bbb; font-size: 13px; }
+        .kwm-toolbar { display: flex; gap: 6px; margin-bottom: 12px; flex-wrap: wrap; }
+        .kwm-toolbar .ed-btn { flex: 1; text-align: center; min-width: 0; white-space: nowrap; }
+        /* ===== Sort Controls ===== */
+        .sort-bar { display: flex; align-items: center; gap: 6px; margin-left: auto; }
+        .sort-bar .sort-label { font-size: 12px; color: #999; white-space: nowrap; }
+        .sort-bar select {
+            padding: 4px 10px; border: 1.5px solid #dcdfe6; border-radius: 8px;
+            font-size: 12px; color: #555; background: #fff; outline: none;
+            cursor: pointer; transition: border-color 0.2s;
+        }
+        .sort-bar select:focus { border-color: #409eff; }
+        /* ===== Cloud Sync Indicator ===== */
+        .sync-bar {
+            position: fixed; top: 0; left: 0; right: 0; z-index: 2000;
+            display: flex; align-items: center; justify-content: center; gap: 8px;
+            padding: 6px 16px; font-size: 12px; transition: all 0.4s;
+            pointer-events: none; opacity: 0; transform: translateY(-100%);
+        }
+        .sync-bar.show { opacity: 1; transform: translateY(0); }
+        .sync-bar.syncing { background: #ecf5ff; color: #409eff; }
+        .sync-bar.success { background: #f0f9eb; color: #67c23a; }
+        .sync-bar.error { background: #fef0f0; color: #f56c6c; }
+        .sync-bar.offline { background: #fdf6ec; color: #e6a23c; }
+        .sync-dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+        .sync-bar.syncing .sync-dot { animation: syncPulse 1s infinite; }
+        @keyframes syncPulse { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
+        .cloud-badge {
+            position: absolute; top: 8px; right: 24px; font-size: 11px; color: #67c23a;
+            display: flex; align-items: center; gap: 4px;
+        }
+        .cloud-badge.offline { color: #e6a23c; }
+        .loading-overlay {
+            position: fixed; inset: 0; background: rgba(255,255,255,0.85); z-index: 3000;
+            display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px;
+        }
+        .loading-spinner {
+            width: 36px; height: 36px; border: 3px solid #e4e9f2; border-top-color: #409eff;
+            border-radius: 50%; animation: spin 0.8s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .loading-text { font-size: 14px; color: #666; }
+        /* ===== Import Duplicate Modal ===== */
+        .dup-list-box { max-height: 200px; overflow-y: auto; margin: 10px 0; padding: 10px; background: #f9f9fb; border-radius: 8px; font-size: 12px; line-height: 1.8; }
+        .dup-list-box .dup-item { color: #e6a23c; }
+        @media (max-width: 768px) { .container { padding: 16px; } .upload-zone { padding: 30px 16px; } .stat-row { gap: 14px; } .num-section { flex-direction: column; } .modal-overlay { padding: 16px 8px; } }
+    </style>
+</head>
+<body>
+<div class="sync-bar" id="syncBar"><span class="sync-dot"></span><span id="syncText"></span></div>
+<div class="loading-overlay" id="loadingOverlay"><div class="loading-spinner"></div><div class="loading-text">正在从云端加载题库...</div></div>
+
+<div class="container">
+    <header>
+        <h1>快速答题助手</h1>
+        <p>上传题库 CSV，通过搜索 / 关键词 / 数字快速定位题目与答案</p>
+        <div class="cloud-badge" id="cloudBadge">☁️ 云端同步</div>
+    </header>
+
+    <div class="upload-zone" id="dropZone">
+        <div class="icon">📄</div>
+        <p id="uploadText">拖拽 CSV 文件到此处，或点击上传</p>
+        <div class="hint">CSV 格式：序号, 题目, 答案 · 支持增量添加 · 自动清洗答案格式</div>
+        <input type="file" id="fileInput" accept=".csv" style="display:none">
+    </div>
+
+    <div class="card" id="statsCard">
+        <div class="stat-row">
+            <div class="stat-item"><span class="label">题库总数</span><span class="value" id="sTotal">0</span></div>
+            <div class="stat-item"><span class="label">关键词</span><span class="value" id="sKw">0</span></div>
+            <div class="stat-item"><span class="label">数字/单位</span><span class="value" id="sUnit">0</span></div>
+        </div>
+        <div class="dup-info" id="dupInfo"></div>
+        <div class="add-info" id="addInfo"></div>
+    </div>
+
+    <div class="card" id="kwCard">
+        <div class="section-title"><span>🔍</span>搜索</div>
+        <div class="text-search-wrap">
+            <input type="text" id="textSearch" placeholder="输入任意内容搜索（空格分隔多个词，取交集）">
+            <span class="text-search-clear" id="textSearchClear" onclick="clearTextSearch()">✕</span>
+        </div>
+
+        <div class="selected-bar" id="selBar">
+            <div class="selected-bar-inner">
+                <span class="lbl">已选：</span>
+                <div id="selChips"></div>
+                <button class="clear-btn" id="clearBtn">清除全部</button>
+            </div>
+        </div>
+        <div class="scope-row" id="scopeRow">
+            <span class="scope-lbl">搜索范围：</span>
+            <button class="scope-btn on" id="btnScopeQ" onclick="toggleScope('q')">题目</button>
+            <button class="scope-btn on" id="btnScopeA" onclick="toggleScope('a')">答案</button>
+            <span class="scope-hint" id="scopeHint"></span>
+        </div>
+
+        <div class="section-title" style="margin-top:4px">
+            <span>🔢</span>数字 & 单位
+            <button class="section-clear-btn" onclick="clearNumSection()">清除</button>
+        </div>
+        <div class="num-section">
+            <div class="numpad-area">
+                <div class="num-input-row">
+                    <input type="text" id="numField" placeholder="数字..." inputmode="decimal">
+                    <span class="num-unit-tag" id="numUnitTag"></span>
+                    <span class="num-clear-x" id="numClearX" onclick="numClearAll()">✕</span>
+                </div>
+                <div class="numpad">
+                    <button onclick="numTap('7')">7</button><button onclick="numTap('8')">8</button><button onclick="numTap('9')">9</button>
+                    <button onclick="numTap('4')">4</button><button onclick="numTap('5')">5</button><button onclick="numTap('6')">6</button>
+                    <button onclick="numTap('1')">1</button><button onclick="numTap('2')">2</button><button onclick="numTap('3')">3</button>
+                    <button onclick="numTap('.')">.</button><button onclick="numTap('0')">0</button><button onclick="numBack()">⌫</button>
+                </div>
+            </div>
+            <div class="unit-area">
+                <div class="unit-area-title">单位（点击选择/取消）</div>
+                <div class="unit-chips" id="unitChips"></div>
+            </div>
+        </div>
+
+        <div class="section-title" style="margin-top:4px">
+            <span>🔑</span>关键词
+            <span class="legend">绿≤2题　橙≤5题　红>5题 · 逐级缩小 · 首字母分组</span>
+            <button class="section-clear-btn" onclick="openKwManager()" style="border-color:#409eff;color:#409eff">管理</button>
+            <button class="section-clear-btn" onclick="clearKwSection()">清除选中</button>
+        </div>
+        <div class="kw-filter-wrap">
+            <input type="text" id="kwFilter" placeholder="搜索关键词 / 题目 / 答案...">
+            <span class="kw-filter-clear" id="kwFilterClear" onclick="clearKwFilter()">✕</span>
+        </div>
+        <div class="kw-visible-count" id="kwVisCount"></div>
+        <div class="kw-box" id="kwBox"></div>
+    </div>
+
+    <div class="card" id="resCard">
+        <div class="results-hdr">
+            <div class="section-title" style="margin-bottom:0"><span>📝</span>题目列表</div>
+            <div class="sort-bar">
+                <span class="sort-label">排序：</span>
+                <select id="sortMode" onchange="onSortChange()">
+                    <option value="default">默认（添加顺序）</option>
+                    <option value="alpha">题目首字母</option>
+                    <option value="similar">题目相似度</option>
+                </select>
+            </div>
+            <div class="results-cnt" id="resCnt"></div>
+        </div>
+        <div class="q-list" id="qList"></div>
+        <div class="load-more" id="loadMore" style="display:none"><button id="loadMoreBtn">加载更多</button></div>
+    </div>
+    <div class="footer-clear"><span onclick="clearAllData()">清空题库</span></div>
+</div>
+
+<!-- Question Editor Modal -->
+<div class="modal-overlay" id="edModal">
+    <div class="modal-box">
+        <div class="modal-hdr">
+            <h3 id="edTitle">编辑题目</h3>
+            <button class="modal-close" onclick="closeEditor()">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div class="ed-field">
+                <div class="ed-label">题目</div>
+                <textarea class="ed-textarea" id="edQ" rows="3"></textarea>
+            </div>
+            <div class="ed-field">
+                <div class="ed-label">答案</div>
+                <textarea class="ed-textarea" id="edA" rows="4"></textarea>
+            </div>
+            <div class="ed-kw-section">
+                <div class="ed-label">
+                    关键词
+                    <span class="hint">点击 ✕ 删除 · 在上方题目中选中文字后点击「添加选中文字」</span>
+                </div>
+                <div class="ed-kw-chips" id="edKwChips"></div>
+                <div class="ed-select-hint" id="edSelHint">已选中：<b id="edSelText"></b></div>
+                <div class="ed-add-row">
+                    <input type="text" id="edKwInput" placeholder="输入关键词...">
+                    <button class="ed-btn ed-btn-primary" onclick="edAddKw()">添加</button>
+                    <button class="ed-btn ed-btn-default" id="edAddSelBtn" onclick="edAddSelection()" style="display:none">添加选中文字</button>
+                </div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="ed-btn ed-btn-danger" onclick="edDelete()">删除此题</button>
+            <span style="flex:1"></span>
+            <button class="ed-btn ed-btn-default" onclick="closeEditor()">取消</button>
+            <button class="ed-btn ed-btn-primary" onclick="edSave()">保存</button>
+        </div>
+    </div>
+</div>
+
+<!-- Keyword Manager Modal -->
+<div class="modal-overlay" id="kwmModal">
+    <div class="modal-box">
+        <div class="modal-hdr">
+            <h3>关键词管理</h3>
+            <button class="modal-close" onclick="closeKwManager()">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div class="kwm-toolbar">
+                <button class="ed-btn ed-btn-default" onclick="kwExport('json')">导出 JSON</button>
+                <button class="ed-btn ed-btn-default" onclick="kwExport('csv')">导出 CSV</button>
+                <button class="ed-btn ed-btn-default" onclick="kwExport('xlsx')">导出 Excel</button>
+                <button class="ed-btn ed-btn-primary" onclick="$('kwImportFile').click()">导入</button>
+                <input type="file" id="kwImportFile" accept=".json,.csv,.xlsx,.xls" style="display:none" onchange="kwImportFileHandler(this)">
+            </div>
+            <input type="text" class="kwm-search" id="kwmSearch" placeholder="搜索关键词..." oninput="renderKwmList()">
+            <div class="kwm-list" id="kwmList"></div>
+        </div>
+        <div class="modal-footer">
+            <button class="ed-btn ed-btn-default" onclick="closeKwManager()">关闭</button>
+        </div>
+    </div>
+</div>
+
+<!-- Import Duplicate Confirm Modal -->
+<div class="modal-overlay" id="kwImportModal">
+    <div class="modal-box" style="max-width:520px">
+        <div class="modal-hdr">
+            <h3>导入关键词</h3>
+            <button class="modal-close" onclick="$('kwImportModal').classList.remove('open')">&times;</button>
+        </div>
+        <div class="modal-body" id="kwImportBody"></div>
+        <div class="modal-footer" id="kwImportFooter"></div>
+    </div>
+</div>
+
+<script>
+const SUPABASE_URL = 'https://jsqqphbpwggapmdvkzuw.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpzcXFwaGJwd2dnYXBtZHZrenV3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMyMDc0NTAsImV4cCI6MjA4ODc4MzQ1MH0.ZAkT2THlYWzKLtow3MR06e8a4fzJcsOGx5RSgu0vD6c';
+const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+const STORE_KEY = 'quiz-helper-qs';
+const KW_CUSTOM_KEY = 'quiz-helper-kw-custom';
+const PAGE = 80;
+
+const ZH_COMPOUNDS = [
+    '肥厚型心肌病','梗阻性肥厚型心肌病','非梗阻性肥厚型心肌病',
+    '肥厚性心肌病','梗阻性肥厚性心肌病','扩张型心肌病','限制型心肌病',
+    '心肌肌球蛋白抑制剂','心肌肌球蛋白','肌球蛋白抑制剂','肌球蛋白',
+    '肌小节蛋白','肌钙蛋白','心肌肌钙蛋白',
+    '左室流出道梗阻','左室流出道','左心室流出道','流出道梗阻','流出道',
+    '左室流出道压力阶差','压力阶差','压力梯度',
+    '射血分数','左心室射血分数','心功能分级','舒张功能','收缩功能',
+    '收缩期前向运动','前向运动',
+    '峰值摄氧量','最大摄氧量','运动耐量','运动能力','运动耐受',
+    '超松弛状态','超松弛','变构位点','横桥形成',
+    '室间隔减容术','室间隔减容','心肌切除术','射频消融术','射频消融',
+    '室间隔心肌消融术','酒精消融术','酒精室间隔消融术',
+    '经皮腔内室间隔心肌消融术',
+    '室间隔','房间隔','二尖瓣','三尖瓣','主动脉瓣','肺动脉瓣',
+    '左心室','右心室','左心房','右心房',
+    '二尖瓣反流','二尖瓣关闭不全','主动脉瓣狭窄','二尖瓣前叶',
+    '心力衰竭','心房颤动','心源性猝死','室性心动过速',
+    '心肌梗死','心绞痛','冠心病','高血压','糖尿病',
+    '剂量滴定','半衰期','药物相互作用','生物利用度','血药浓度',
+    '不良反应','禁忌症','适应症','药代动力学','药效动力学',
+    '基因突变','基因变异','致病基因','常染色体显性遗传',
+    '玛伐凯泰','阿非卡姆汀','阿夫凯泰','阿飞卡坦',
+    '文丘里效应','瓦尔萨尔瓦',
+    '横纹肌溶解','肝功能损害','肾功能损害',
+    '随机对照试验','双盲试验','安慰剂对照',
+    '纽约心脏协会','心功能Ⅰ级','心功能Ⅱ级','心功能Ⅲ级','心功能Ⅳ级',
+    '平板运动试验','运动负荷试验','运动试验','心肺运动试验',
+    '安慰剂','安慰剂组','随机双盲','多中心',
+    '超声心动图','心脏超声','经胸超声心动图','经食道超声心动图',
+    '心电图','动态心电图','心电监测',
+    '磁共振成像','心脏磁共振','核磁共振',
+    '心脏骤停','心搏骤停',
+    '植入式心律转复除颤器','除颤器','心脏除颤器',
+    '起搏器','心脏起搏器',
+    'β受体阻滞剂','钙通道阻滞剂','丙吡胺',
+    '非二氢吡啶','钙拮抗剂','维拉帕米','地尔硫卓',
+    '基因检测','基因筛查','遗传咨询','家族筛查',
+    '起始剂量','维持剂量','目标剂量','推荐剂量','最大剂量',
+    '小剂量','大剂量','低剂量','高剂量',
+    '收缩压','舒张压','血压','心率','静息心率',
+    '肝功能','肾功能','血常规','心肌酶',
+    '谷浓度','峰浓度',
+    '房室传导阻滞','传导阻滞',
+    '窦性心动过缓','心动过缓','心动过速',
+    '心脏再同步化治疗',
+    '猝死风险','猝死预防',
+    '胸骨旁','心尖部',
+    '心脏听诊','收缩期杂音',
+    '生活质量','堪萨斯城心肌病问卷',
+    '呼吸困难','胸闷','心悸','晕厥',
+    '药物治疗','手术治疗','介入治疗',
+    '不良事件','严重不良事件',
+    '意向性分析','亚组分析',
+    '主要终点','次要终点','复合终点',
+    '蛋白结合率','清除率',
+    '口服给药','静脉给药',
+    '心脏移植','室壁厚度','室壁运动',
+    '心肌纤维化','心肌灌注',
+    '左束支传导阻滞','右束支传导阻滞',
+    '充血性心衰','急性心衰','慢性心衰',
+    '肺动脉高压','肺栓塞',
+    '心包积液','心肌炎',
+    '动脉粥样硬化','外周动脉',
+    '药物代谢','首过效应',
+    '细胞色素','代谢酶','肝药酶',
+    '治疗窗','安全范围',
+    '知情同意','伦理委员会',
+    '对照组','试验组','治疗组',
+    '入选标准','排除标准',
+    '统计学意义','置信区间','显著性差异',
+    '生存分析','风险比','优效性','非劣效性',
+    '法布雷','法布雷病','法布雷病心肌病',
+    '淀粉样变性','心脏淀粉样变性',
+    '糖原贮积症','溶酶体贮积病',
+    '酶替代疗法','半乳糖苷酶','α半乳糖苷酶',
+    '向心性肥厚','非对称性肥厚','偏心性肥厚','对称性肥厚',
+    '左心室肥厚','右心室肥厚',
+    '纵向应变','整体纵向应变',
+    '钆延迟强化','钆延迟显像','延迟强化',
+    '经典型','迟发型',
+    '脑钠肽','前体','心脏标志物',
+    '遗传性心脏病','遗传性疾病',
+    '体力活动','运动受限',
+    '前负荷','后负荷',
+    '肌动蛋白','肌凝蛋白',
+    '血流动力学','血管阻力',
+    '房性心律失常','室性心律失常',
+    '窦性心律','心律失常',
+    '心肌病变','心肌损伤','心肌重构',
+    '心脏手术','心脏介入',
+    '体外循环','主动脉切开',
+    '心脏彩超','彩色多普勒',
+    '舒张末期','收缩末期',
+    '乳头肌','腱索',
+    '遗传学','表型','基因型',
+    '预后','随访','死亡率',
+    '代谢底物','脂质贮积',
+    '心肌活检','病理检查',
+    '药物浓度','血浆浓度',
+    '剂量调整','负荷剂量',
+].map(t => t.toLowerCase());
+
+const EN_STOP = new Set([
+    'the','a','an','is','are','was','were','be','been','being','have','has','had',
+    'do','does','did','will','would','shall','should','may','might','can','could',
+    'must','need','ought','to','of','in','for','on','with','at','by','from','as',
+    'into','through','during','before','after','above','below','between','out','off',
+    'over','under','again','further','then','once','here','there','when','where',
+    'why','how','all','both','each','few','more','most','other','some','such','no',
+    'nor','not','only','own','same','so','than','too','very','just','because','but',
+    'and','or','if','while','about','this','that','these','those','what','which',
+    'who','whom','it','its','he','she','they','we','you','i','me','my','your','his',
+    'her','their','our','up','down','also','any','every','many','much','well','back',
+    'even','still','am','get','got','go','goes','went','gone','come','came',
+    'take','took','taken','make','made','let','say','said','tell','told','ask','asked',
+    'know','knew','think','thought','see','saw','want','give','gave','find','found',
+    'put','set','keep','kept','try','tried','start','started','show','showed',
+    'move','moved','like','live','believe','hold','bring','happen','write','provide',
+    'sit','stand','lose','pay','meet','play','run','turn','leave','call','begin',
+    'seem','help','talk','follow','lead','learn','change','end','point','read',
+    'answer','question','number','part','used','using','use','include','includes','including',
+    'following','among','called','based','refer','refers','known','eg','ie','etc',
+    'vs','via','per','whether','whose','thus','hence','therefore','however','although',
+    'though','since','until','unless','upon','within','without','according','rather',
+    'already','always','never','often','sometimes','usually','really','quite','another',
+    'able','around','become','certain','different','either','else','enough',
+    'maybe','perhaps','probably','actually','basically','generally','simply','currently',
+    'one','two','three','four','five','six','seven','eight','nine','ten','true','false',
+    'first','second','third','last','next','new','old','long','short','high','low',
+    'right','wrong','good','bad','best','worst','great','small','big','large','little',
+    'important','common','related','specific','general','main','major','minor',
+    'result','results','cause','causes','caused','effect','effects','type','types',
+    'example','given','case','cases','define','defined','definition','describe','described',
+    'method','process','system','form','group','level','rate','role','name','term',
+    'correct','incorrect','statement','statements','option','options','characteristic',
+    'characteristics','feature','features','function','functions','condition','conditions',
+    'factor','factors','mechanism','mechanisms','associated','occur','occurs','involved',
+    'increase','increased','decrease','decreased','reduce','reduced','higher','lower',
+    'risk','therapy','treatment','patient','patients','disease','diseases',
+    'drug','drugs','dose','doses','dosage','response','clinical','study','studies',
+    'trial','trials','test','tests','data','significant','body','blood','cell','cells',
+    'day','days','week','weeks','month','months','year','years','hour','hours','time',
+    'times','oral','mg','ml','kg','following','adverse','side','reaction','reactions',
+    'indicate','indicates','indicated','indication','indications','typically','usually',
+    'primarily','mainly','especially','particularly','likely','unlikely','require','required',
+    'appropriate','consider','considered','recommended','suggest','suggested','necessary',
+    'possible','potential','effective','available','standard','normal','initial','total',
+    'maximum','minimum','average','apply','applied','period','range',
+    'compared','similar','present','absent','positive','negative','severe',
+    'moderate','mild','acute','chronic','primary','secondary'
+]);
+
+const ZH_STOP = new Set([
+    '的','了','是','在','我','有','和','就','不','也','一','你','他','她','们',
+    '吗','会','被','把','那','这','着','让','都','对','与','及','等','或','以',
+    '而','于','其','之','所','将','从','为','中','到','上','下','出','来','去',
+    '能','可以','要','还','很','得','过','该','已','经','但','如果','虽然',
+    '因为','所以','什么','怎么','哪','谁','多','少','没有','没','请','问',
+    '做','个','里','呢','吧','啊','哦','嗯','那个','这个','这些','那些',
+    '不是','可能','已经','一个','一些','它','它们','自己','更','最','非常',
+    '比较','应该','需要','进行','通过','以下','关于','属于','包括','哪个',
+    '哪些','以及','否则','即','则','若','且','既','又','还是','或者','而且',
+    '不过','然而','因此','于是','除了','除','只','只是','就是','并','并且',
+    '之后','之前','时','时候','地','地方','上面','下面','里面','外面',
+    '前面','后面','左','右','种','些','次','根据','然后','如何','怎样',
+    '什么样','为什么','哪里','哪儿','多少','几','几个','每','每个',
+    '指','叫','称为','表示','具有','用于','主要','其中','之一','相关',
+    '作用','特点','以下','下列','正确','错误','属于','不属于','选项',
+    '说法','描述','解释','方法','过程','结果','原因','情况','常见',
+    '引起','导致','发生','产生','影响','功能','特征','类型','分类',
+    '一般','通常','常用','基本','重要','相同','不同','区别',
+    '治疗','患者','药物','剂量','给药','用药','临床','使用',
+    '可能','可以','应该','需要','必须','不能','不应','不宜',
+    '增加','减少','升高','降低','提高','促进','抑制',
+    '不全','不良','不足','不当','不适','不稳','不利','不明','不佳',
+    '不好','不够','不对','不行','不可','不规则',
+    '过多','过少','过高','过低','过大','过小','过快','过慢','过度','过量',
+    '大约','大概','左右','约为','大多','大部分','大量','少量','适量','足量',
+    '是否','能否','可否','有无','存在','具备',
+    '全部','部分','其他','某些','某','各','各种','各类','任何','所有',
+    '正常','异常','明显','显著','逐渐','持续','反复','频繁',
+    '严重','轻微','轻度','中度','重度','急性','慢性',
+    '早期','晚期','中期','初期','后期','长期','短期',
+    '首选','最佳','最好','最多','最少','最大','最小','最高','最低',
+    '特别','尤其','特殊','普通','简单','复杂','快速','缓慢',
+    '一定','必须','必要','必需','主要','次要','常见','少见','多见',
+    '直接','间接','完全','不完全','单独','同时','分别','依次',
+    '可见','少见','偶见','罕见',
+    '伴有','伴随','出现','表现','发现','检查','监测','评估','诊断',
+    '预防','控制','处理','管理','观察','注意','避免','防止',
+    '合理','适当','有效','安全','规范','标准',
+    '中的','哪一','从小','对于','由于','在于','有关','所谓','当中',
+    '开始','停止','完成','继续','认为','选择','确定','考虑','了解',
+    '建议','推荐','证实','证明','提示','显示','报告','记录',
+    '目前','当前','已知','未知','一旦','往往','几乎','至少','至多',
+    '高达','低至','约','超过','不超过','例如','如','相对','绝对',
+    '接受','服用','口服','给予','采用','采取',
+    '见于','多于','少于','用于','适用','关联','相关性',
+    '典型','非典型','原发','继发','先天','后天',
+    '上述','下述','前述','综上','总之','即可','方可',
+    '无需','无关','有关','无效','有效',
+    '常规','特异','敏感','特异性','敏感性'
+]);
+
+const UNIT_PATTERNS = [
+    'mg/kg','mg/m²','mg/m2','mg/dL','mg/L','g/dL','g/L',
+    'mmol/L','μmol/L','nmol/L','μg/mL','ng/mL','pg/mL',
+    'IU/L','IU/mL','U/L','U/mL','mL/min','mEq/L',
+    'mmHg','kPa','bpm',
+    'mmol','μmol','nmol','pmol','mcg','μg','ng','pg',
+    'mg','mL','ml','dL','dl','kg','mol','IU','g','L','U',
+    '%','小时','分钟','周','天','日','月','年','岁',
+    '次','回','片','粒','丸','支','瓶','袋','盒','剂'
+];
+
+const PINYIN_MAP = [
+    ['A','啊'],['B','八'],['C','擦'],['D','搭'],['E','蛾'],['F','发'],
+    ['G','嘎'],['H','哈'],['J','击'],['K','咖'],['L','拉'],['M','妈'],
+    ['N','拿'],['O','噢'],['P','啪'],['Q','七'],['R','然'],['S','撒'],
+    ['T','他'],['W','挖'],['X','夕'],['Y','压'],['Z','匝']
+];
+
+let questions = [];
+let kwData = {}, kwList = [];
+let unitList = [];
+let selected = new Set();
+let scopeQ = true, scopeA = true;
+let numInput = '', selUnit = '';
+let textQuery = '';
+let displayCount = 0, currentIdx = [];
+
+const $ = id => document.getElementById(id);
+
+async function init() {
+    const dz = $('dropZone');
+    dz.addEventListener('click', () => $('fileInput').click());
+    dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('dragover'); });
+    dz.addEventListener('dragleave', () => dz.classList.remove('dragover'));
+    dz.addEventListener('drop', e => { e.preventDefault(); dz.classList.remove('dragover'); if (e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]); });
+    $('fileInput').addEventListener('change', () => { if ($('fileInput').files[0]) handleFile($('fileInput').files[0]); });
+    $('clearBtn').addEventListener('click', clearAllFilters);
+    $('kwFilter').addEventListener('input', onKwFilterInput);
+    $('loadMoreBtn').addEventListener('click', loadMore);
+    $('numField').addEventListener('input', onNumFieldInput);
+    $('numField').addEventListener('keydown', e => { if (e.key === 'Escape') { numClearAll(); e.target.blur(); } });
+    $('textSearch').addEventListener('input', onTextSearchInput);
+    $('textSearch').addEventListener('keydown', e => { if (e.key === 'Escape') { clearTextSearch(); e.target.blur(); } });
+
+    document.addEventListener('keydown', e => {
+        if (e.key === 'Escape') {
+            if ($('kwImportModal').classList.contains('open')) $('kwImportModal').classList.remove('open');
+            else if ($('edModal').classList.contains('open')) closeEditor();
+            else if ($('kwmModal').classList.contains('open')) closeKwManager();
+        }
+    });
+    $('edKwInput').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); edAddKw(); } });
+    $('edModal').addEventListener('click', e => { if (e.target === $('edModal')) closeEditor(); });
+    $('kwmModal').addEventListener('click', e => { if (e.target === $('kwmModal')) closeKwManager(); });
+    $('kwImportModal').addEventListener('click', e => { if (e.target === $('kwImportModal')) $('kwImportModal').classList.remove('open'); });
+
+    let loaded = false;
+    try {
+        const cloudData = await loadStoreCloud();
+        const cloudKw = await loadCustomKwCloud();
+        if (cloudData && cloudData.length > 0) {
+            questions = cloudData;
+            saveStoreLocal();
+            if (cloudKw && Object.keys(cloudKw).length > 0) {
+                customKw = cloudKw;
+                try { localStorage.setItem(KW_CUSTOM_KEY, JSON.stringify(customKw)); } catch {}
+            }
+            loaded = true;
+            $('cloudBadge').textContent = '☁️ 云端已连接';
+        } else {
+            const localData = loadStoreLocal();
+            if (localData && localData.length > 0) {
+                questions = localData;
+                showSync('syncing', '正在上传本地数据到云端...');
+                await saveStoreCloud();
+                const localKw = loadCustomKw();
+                if (localKw && Object.keys(localKw).length > 0) {
+                    customKw = localKw;
+                    await saveCustomKwCloud();
+                }
+                showSync('success', '本地数据已上传到云端');
+                loaded = true;
+                $('cloudBadge').textContent = '☁️ 云端已连接';
+            }
+        }
+    } catch (err) {
+        const localData = loadStoreLocal();
+        if (localData && localData.length > 0) { questions = localData; loaded = true; }
+        $('cloudBadge').textContent = '⚠️ 离线模式';
+        $('cloudBadge').className = 'cloud-badge offline';
+        showSync('offline', '云端连接失败，使用本地数据');
+    }
+
+    $('loadingOverlay').style.display = 'none';
+    if (loaded) { rebuildIndex(); updateUploadZone(); }
+}
+
+function loadStoreLocal() {
+    try {
+        const s = localStorage.getItem(STORE_KEY);
+        if (!s) return null;
+        const data = JSON.parse(s);
+        const needsMigration = data.some(r => r[2] && /<[^>]+>/.test(r[2]));
+        if (needsMigration) {
+            const cleaned = data.map(r => [r[0], r[1], cleanAnswer(r[2])]);
+            localStorage.setItem(STORE_KEY, JSON.stringify(cleaned));
+            return cleaned;
+        }
+        return data;
+    } catch { return null; }
+}
+function saveStoreLocal() { try { localStorage.setItem(STORE_KEY, JSON.stringify(questions)); } catch {} }
+
+async function loadStoreCloud() {
+    try {
+        const { data, error } = await sb.from('app_data').select('value').eq('key', 'questions').single();
+        if (error || !data) return null;
+        return data.value;
+    } catch { return null; }
+}
+
+let _saveQTimer = null;
+async function saveStoreCloud() {
+    try {
+        await sb.from('app_data').upsert({ key: 'questions', value: questions, updated_at: new Date().toISOString() });
+    } catch {}
+}
+
+function saveStore() {
+    saveStoreLocal();
+    if (_saveQTimer) clearTimeout(_saveQTimer);
+    _saveQTimer = setTimeout(() => { showSync('syncing', '正在同步题库...'); saveStoreCloud().then(() => showSync('success', '题库已同步')).catch(() => showSync('error', '同步失败')); }, 800);
+}
+
+async function loadCustomKwCloud() {
+    try {
+        const { data, error } = await sb.from('app_data').select('value').eq('key', 'custom_kw').single();
+        if (error || !data) return {};
+        return data.value || {};
+    } catch { return {}; }
+}
+
+let _saveKwTimer = null;
+async function saveCustomKwCloud() {
+    try {
+        await sb.from('app_data').upsert({ key: 'custom_kw', value: customKw, updated_at: new Date().toISOString() });
+    } catch {}
+}
+
+function saveCustomKw() {
+    try { localStorage.setItem(KW_CUSTOM_KEY, JSON.stringify(customKw)); } catch {}
+    if (_saveKwTimer) clearTimeout(_saveKwTimer);
+    _saveKwTimer = setTimeout(() => { saveCustomKwCloud().catch(() => {}); }, 800);
+}
+
+function loadCustomKw() {
+    try { const s = localStorage.getItem(KW_CUSTOM_KEY); return s ? JSON.parse(s) : {}; } catch { return {}; }
+}
+
+let _syncTimer = null;
+function showSync(type, msg) {
+    const bar = $('syncBar');
+    bar.className = 'sync-bar ' + type + ' show';
+    $('syncText').textContent = msg;
+    if (_syncTimer) clearTimeout(_syncTimer);
+    _syncTimer = setTimeout(() => bar.classList.remove('show'), type === 'error' ? 4000 : 2000);
+}
+function updateUploadZone() {
+    $('uploadText').textContent = questions.length > 0
+        ? `已有 ${questions.length} 道题 · 点击继续添加` : '拖拽 CSV 文件到此处，或点击上传';
+}
+
+/* ===== Answer Cleaning ===== */
+
+function cleanAnswer(text) {
+    if (!text) return '';
+    const hasHtml = /<[^>]+>/.test(text);
+    let cleaned = text;
+
+    if (hasHtml) {
+        const hasColor = /<font\b[^>]*\bcolor/i.test(text) ||
+                          /\bstyle\s*=\s*["'][^"']*\bcolor\s*:/i.test(text);
+
+        if (hasColor) {
+            const doc = new DOMParser().parseFromString('<div>' + text + '</div>', 'text/html');
+            const root = doc.body.firstChild;
+            const parts = [];
+
+            function getColor(el) {
+                while (el && el !== root) {
+                    if (el.tagName === 'FONT') {
+                        const c = el.getAttribute('color');
+                        if (c) return c.trim().toLowerCase();
+                    }
+                    const st = el.getAttribute && el.getAttribute('style');
+                    if (st) {
+                        const m = st.match(/(?:^|;)\s*color\s*:\s*([^;]+)/i);
+                        if (m) return m[1].trim().toLowerCase();
+                    }
+                    el = el.parentElement;
+                }
+                return null;
+            }
+
+            function isBlack(c) {
+                if (c === null) return true;
+                c = c.replace(/\s/g, '').toLowerCase();
+                return ['black','#000','#000000','#333','#333333',
+                        'rgb(0,0,0)','rgb(51,51,51)'].includes(c);
+            }
+
+            const walker = doc.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+            let node;
+            while ((node = walker.nextNode())) {
+                const color = getColor(node.parentElement);
+                if (!isBlack(color)) parts.push(node.textContent);
+            }
+            cleaned = parts.join('').trim();
+            if (!cleaned) cleaned = root.textContent.trim();
+        } else {
+            cleaned = text.replace(/<br\s*\/?>/gi, '\n')
+                          .replace(/<\/p>\s*<p[^>]*>/gi, '\n')
+                          .replace(/<[^>]+>/g, '').trim();
+        }
+    }
+
+    cleaned = cleaned.replace(/<br\s*\/?>/gi, '\n')
+                      .replace(/<[^>]+>/g, '');
+
+    cleaned = cleaned.replace(/(^|[\n\r]\s*)([A-Da-d])\s*([.、:：)）])/gm, (m, pre, letter, sep) => {
+        const num = letter.toUpperCase().charCodeAt(0) - 64;
+        return pre + num + sep;
+    });
+
+    return cleaned.trim();
+}
+
+/* ===== File Handling ===== */
+
+async function handleFile(file) {
+    const buf = await file.arrayBuffer();
+    let text;
+    try { text = new TextDecoder('utf-8', { fatal: true }).decode(buf); }
+    catch { text = new TextDecoder('gbk').decode(buf); }
+    processCSV(text.replace(/^\uFEFF/, ''));
+}
+
+function parseCSV(text) {
+    const rows = [];
+    const len = text.length;
+    let pos = 0;
+
+    function readField() {
+        let val = '';
+        if (pos < len && text[pos] === '"') {
+            pos++;
+            while (pos < len) {
+                if (text[pos] === '"') {
+                    if (pos + 1 < len && text[pos + 1] === '"') { val += '"'; pos += 2; }
+                    else { pos++; break; }
+                } else { val += text[pos]; pos++; }
+            }
+        } else {
+            while (pos < len && text[pos] !== ',' && text[pos] !== '\r' && text[pos] !== '\n') {
+                val += text[pos]; pos++;
+            }
+        }
+        return val.trim();
+    }
+
+    while (pos < len) {
+        if (text[pos] === '\r' || text[pos] === '\n') { pos++; continue; }
+        const fields = [];
+        while (true) {
+            fields.push(readField());
+            if (pos < len && text[pos] === ',') { pos++; continue; }
+            break;
+        }
+        if (pos < len && text[pos] === '\r') pos++;
+        if (pos < len && text[pos] === '\n') pos++;
+        if (fields.length >= 3 && fields.some(f => f)) rows.push(fields);
+    }
+    return rows;
+}
+
+const PUNCT_MAP = {'（':'(','）':')','，':',','。':'.','：':':','；':';',
+    '？':'?','！':'!','\u201c':'"','\u201d':'"','\u2018':"'",'\u2019':"'",
+    '【':'[','】':']','、':',','〈':'<','〉':'>','《':'<','》':'>',
+    '～':'~','—':'-','…':'...'};
+const PUNCT_RE = new RegExp('[' + Object.keys(PUNCT_MAP).join('').replace(/[\[\]\\]/g,'\\$&') + ']', 'g');
+function normPunct(s) { return s.replace(PUNCT_RE, c => PUNCT_MAP[c] || c); }
+
+function dedup(rows) {
+    const seen = new Map(), uniq = [], dups = [];
+    for (const r of rows) {
+        const key = normPunct(r[1] + '\x00' + r[2]).toLowerCase();
+        if (seen.has(key)) dups.push(r);
+        else { seen.set(key, true); uniq.push(r); }
+    }
+    return { uniq, dups };
+}
+
+function processCSV(text) {
+    let rows = parseCSV(text);
+    if (rows.length > 0) {
+        const f = rows[0][0].toLowerCase().trim();
+        if (['序号','id','no','number','#','编号','index','题号'].includes(f)) rows = rows.slice(1);
+    }
+
+    rows.forEach(r => { r[2] = cleanAnswer(r[2]); });
+
+    const csvCount = rows.length, prevCount = questions.length;
+    const { uniq } = dedup([...questions, ...rows]);
+    questions = uniq; saveStore();
+    const newAdded = uniq.length - prevCount, dupsRemoved = csvCount - newAdded;
+    rebuildIndex(); updateUploadZone();
+    if (dupsRemoved > 0) { $('dupInfo').textContent = `本次上传 ${csvCount} 题，${dupsRemoved} 题重复已跳过`; $('dupInfo').style.display = 'block'; }
+    else { $('dupInfo').style.display = 'none'; }
+    if (newAdded > 0) { $('addInfo').textContent = prevCount === 0 ? `已加载 ${newAdded} 道题` : `新增 ${newAdded} 道题（原有 ${prevCount} 题）`; $('addInfo').style.display = 'block'; }
+    else { $('addInfo').textContent = '没有新题目添加（全部重复）'; $('addInfo').style.display = 'block'; }
+}
+
+function rebuildIndex() {
+    kwData = buildKeywords(questions);
+    customKw = loadCustomKw();
+    applyCustomKw();
+    unitList = extractUnits(questions);
+    selected.clear(); numInput = ''; selUnit = ''; textQuery = '';
+    $('numField').value = ''; $('textSearch').value = '';
+    $('textSearchClear').style.display = 'none';
+    scopeQ = true; scopeA = true;
+    $('sTotal').textContent = questions.length;
+    $('sKw').textContent = kwList.length;
+    $('sUnit').textContent = unitList.length;
+    $('statsCard').style.display = 'block';
+    renderKwChips(); renderUnits(); syncNumUI();
+    $('kwCard').style.display = 'block';
+    renderResults(allIdx());
+    $('resCard').style.display = 'block';
+}
+
+/* ===== Pinyin Initial ===== */
+
+function getInitial(str) {
+    const c = str.charAt(0);
+    if (/[a-zA-Z]/.test(c)) return c.toUpperCase();
+    if (!/[\u4e00-\u9fff]/.test(c)) return '#';
+    for (let i = PINYIN_MAP.length - 1; i >= 0; i--) {
+        if (c.localeCompare(PINYIN_MAP[i][1], 'zh-CN') >= 0) return PINYIN_MAP[i][0];
+    }
+    return '#';
+}
+
+/* ===== Tokenization with compound dictionary ===== */
+
+function tokenize(text) {
+    const tokens = [];
+    const textLow = text.toLowerCase();
+
+    const compMatches = [];
+    for (const term of ZH_COMPOUNDS) {
+        let idx = textLow.indexOf(term);
+        while (idx !== -1) {
+            compMatches.push({ term, start: idx, end: idx + term.length });
+            idx = textLow.indexOf(term, idx + 1);
+        }
+    }
+    const kept = compMatches.filter(m =>
+        !compMatches.some(o => o !== m && o.start <= m.start && o.end >= m.end && (o.end - o.start) > (m.end - m.start))
+    );
+    for (const m of kept) tokens.push(m.term);
+
+    const bracketRe = /[（(]([^）)]{1,30})[）)]/g;
+    let m;
+    while ((m = bracketRe.exec(text)) !== null) {
+        const inner = m[1].trim();
+        if (!inner) continue;
+        const innerLow = inner.toLowerCase();
+        if (/^[a-zA-Z][a-zA-Z0-9\s\-]*$/.test(inner)) {
+            const words = inner.split(/\s+/);
+            if (words.length <= 3) {
+                if (words.length === 1) {
+                    if (validKw(innerLow)) tokens.push(innerLow);
+                } else {
+                    tokens.push(innerLow);
+                    for (const w of words) { const wl = w.toLowerCase(); if (validKw(wl)) tokens.push(wl); }
+                }
+            }
+        } else if (/[\u4e00-\u9fff]/.test(inner) && inner.length <= 10) {
+            if (validKw(innerLow)) tokens.push(innerLow);
+        }
+    }
+
+    const enRe = /[a-zA-Z][a-zA-Z0-9]*(?:-[a-zA-Z0-9]+)*/g;
+    while ((m = enRe.exec(text)) !== null) { const w = m[0].toLowerCase(); if (validKw(w)) tokens.push(w); }
+
+    const zhText = text.replace(/[a-zA-Z0-9\-]+/g, ' ');
+    if (typeof Intl !== 'undefined' && Intl.Segmenter) {
+        const seg = new Intl.Segmenter('zh-CN', { granularity: 'word' });
+        for (const s of seg.segment(zhText)) {
+            if (s.isWordLike) { const w = s.segment.trim(); if (w && /[\u4e00-\u9fff]/.test(w) && validKw(w)) tokens.push(w); }
+        }
+    } else {
+        const zhRe = /[\u4e00-\u9fff]{2,}/g;
+        while ((m = zhRe.exec(zhText)) !== null) { if (validKw(m[0])) tokens.push(m[0]); }
+    }
+    return [...new Set(tokens)];
+}
+
+function validKw(w) {
+    if (!w || /^\d+$/.test(w) || /^\d+[\.\d]*$/.test(w)) return false;
+    if (EN_STOP.has(w.toLowerCase())) return false;
+    if (ZH_STOP.has(w)) return false;
+    if (/^[a-z]$/i.test(w) || /^[a-z]{2}$/i.test(w)) return false;
+    if (/^[\u4e00-\u9fff]$/.test(w)) return false;
+    return true;
+}
+
+/* ===== Keyword Extraction ===== */
+
+function isChinese(w) { return /[\u4e00-\u9fff]/.test(w); }
+function isCompound(w) { return ZH_COMPOUNDS.includes(w.toLowerCase()); }
+
+function bestCase(wLow, qs, qIds) {
+    if (/[\u4e00-\u9fff]/.test(wLow)) return wLow;
+    const counts = new Map();
+    const re = new RegExp(escRe(wLow), 'gi');
+    const indices = qIds || [];
+    const src = indices.length > 0 ? indices.map(i => qs[i]) : qs;
+    for (const q of src) {
+        let m;
+        while ((m = re.exec(q[1])) !== null) {
+            const form = m[0];
+            counts.set(form, (counts.get(form) || 0) + 1);
+        }
+    }
+    if (counts.size === 0) return wLow;
+    let best = wLow, bestN = 0;
+    for (const [form, n] of counts) {
+        if (n > bestN) { best = form; bestN = n; }
+    }
+    return best;
+}
+
+function buildKeywords(qs) {
+    const N = qs.length; if (N === 0) return {};
+    const qTokens = qs.map(q => tokenize(q[1]));
+    const wordIdx = new Map();
+    for (let i = 0; i < N; i++) {
+        for (const w of qTokens[i]) { if (!wordIdx.has(w)) wordIdx.set(w, new Set()); wordIdx.get(w).add(i); }
+    }
+
+    const picked = new Set();
+    for (let i = 0; i < N; i++) {
+        const all = [...new Set(qTokens[i])];
+        const scored = all.map(w => {
+            const freq = wordIdx.get(w)?.size || 0;
+            if (isChinese(w) && freq <= 1) return { w, score: -1 };
+            let score = Math.log(N / Math.max(freq, 1));
+            if (isCompound(w)) score *= 1.5;
+            return { w, score };
+        });
+        scored.sort((a, b) => b.score - a.score);
+        for (const { w, score } of scored.slice(0, 3)) {
+            if (score > 0) picked.add(w);
+        }
+    }
+
+    const result = {};
+    for (const w of picked) {
+        const qIds = wordIdx.has(w) ? [...wordIdx.get(w)] : [];
+        if (qIds.length > 0) result[w] = { word: w, qIds, display: bestCase(w, qs, qIds) };
+    }
+
+    const kwWords = Object.keys(result);
+    const toRemove = new Set();
+    for (const x of kwWords) {
+        const superKeys = kwWords.filter(y => y !== x && y.includes(x));
+        if (superKeys.length === 0) continue;
+        const xSet = new Set(result[x].qIds);
+        const allCovered = [...xSet].every(qid =>
+            superKeys.some(y => result[y] && result[y].qIds.includes(qid))
+        );
+        if (allCovered) toRemove.add(x);
+    }
+    for (const w of toRemove) delete result[w];
+
+    return result;
+}
+
+/* ===== Unit Extraction ===== */
+
+function extractUnits(qs) {
+    const escaped = UNIT_PATTERNS.map(u => u.replace(/[.*+?^${}()|[\]\\\/]/g, '\\$&'));
+    const re = new RegExp('\\d+(?:\\.\\d+)?\\s*(' + escaped.join('|') + ')(?![a-zA-Z\\u4e00-\\u9fff])', 'gi');
+    const found = new Map();
+    for (const q of qs) { for (const text of [q[1], q[2]]) { let m; while ((m = re.exec(text)) !== null) { const u = m[1], norm = u.toLowerCase(); if (!found.has(norm)) found.set(norm, u); } } }
+    return [...found.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(e => e[1]);
+}
+
+/* ===== Free-text Search ===== */
+
+function onTextSearchInput(e) {
+    textQuery = e.target.value;
+    $('textSearchClear').style.display = textQuery ? '' : 'none';
+    $('kwFilter').value = textQuery;
+    $('kwFilterClear').style.display = textQuery ? '' : 'none';
+    refreshAll();
+}
+function clearTextSearch() {
+    textQuery = ''; $('textSearch').value = '';
+    $('textSearchClear').style.display = 'none';
+    $('kwFilter').value = ''; $('kwFilterClear').style.display = 'none';
+    refreshAll();
+}
+
+/* ===== Numpad ===== */
+
+function onNumFieldInput(e) {
+    let v = e.target.value.replace(/[^\d.]/g, '');
+    const parts = v.split('.'); if (parts.length > 2) v = parts[0] + '.' + parts.slice(1).join('');
+    e.target.value = v; numInput = v; syncNumUI(); refreshAll();
+}
+function numTap(ch) {
+    if (ch === '.' && numInput.includes('.')) return;
+    if (ch === '.' && numInput === '') numInput = '0';
+    numInput += ch; $('numField').value = numInput; syncNumUI(); refreshAll();
+}
+function numBack() { numInput = numInput.slice(0, -1); $('numField').value = numInput; syncNumUI(); refreshAll(); }
+function numClearAll() { numInput = ''; selUnit = ''; $('numField').value = ''; syncNumUI(); renderUnits(); refreshAll(); }
+function unitClick(u) { selUnit = selUnit === u ? '' : u; renderUnits(); syncNumUI(); refreshAll(); }
+function syncNumUI() {
+    const hasVal = numInput || selUnit;
+    $('numUnitTag').textContent = selUnit; $('numUnitTag').style.display = selUnit ? '' : 'none';
+    $('numClearX').style.display = hasVal ? '' : 'none';
+}
+function renderUnits() {
+    const box = $('unitChips'); box.innerHTML = '';
+    for (const u of unitList) { const el = document.createElement('span'); el.className = 'unit-chip' + (selUnit === u ? ' on' : ''); el.textContent = u; el.addEventListener('click', () => unitClick(u)); box.appendChild(el); }
+}
+
+/* ===== Section Clear Buttons ===== */
+
+function clearNumSection() {
+    numInput = ''; selUnit = ''; $('numField').value = '';
+    syncNumUI(); renderUnits(); refreshAll();
+}
+function clearKwSection() {
+    selected.clear();
+    $('kwFilter').value = ''; $('kwFilterClear').style.display = 'none';
+    textQuery = ''; $('textSearch').value = ''; $('textSearchClear').style.display = 'none';
+    autoScope(); refreshUI();
+}
+
+/* ===== Keyword Filter ===== */
+
+function onKwFilterInput() {
+    const val = $('kwFilter').value;
+    $('kwFilterClear').style.display = val ? '' : 'none';
+    textQuery = val;
+    $('textSearch').value = val;
+    $('textSearchClear').style.display = val ? '' : 'none';
+    refreshAll();
+}
+function clearKwFilter() {
+    $('kwFilter').value = ''; $('kwFilterClear').style.display = 'none';
+    textQuery = ''; $('textSearch').value = ''; $('textSearchClear').style.display = 'none';
+    refreshAll();
+}
+
+/* ===== Cascading Keywords ===== */
+
+function getVisibleKeywords() {
+    const hasAnyFilter = selected.size > 0 || textQuery.trim() || numInput || selUnit;
+    if (!hasAnyFilter) return kwList;
+    const filteredSet = new Set(getFiltered());
+    return kwList.filter(kw => {
+        if (selected.has(kw.word)) return true;
+        for (const id of kw.qIds) if (filteredSet.has(id)) return true;
+        return false;
+    });
+}
+
+function renderKwChips() {
+    const box = $('kwBox'); box.innerHTML = '';
+    const filter = ($('kwFilter').value || '').toLowerCase();
+    const visible = getVisibleKeywords();
+    let shown = 0, lastInitial = '';
+    const frag = document.createDocumentFragment();
+
+    for (const k of visible) {
+        if (filter && !k.word.includes(filter)) continue;
+        shown++;
+
+        const initial = getInitial(k.word);
+        if (initial !== lastInitial) {
+            lastInitial = initial;
+            const hdr = document.createElement('div');
+            hdr.className = 'kw-letter-hdr';
+            hdr.textContent = initial;
+            frag.appendChild(hdr);
+        }
+
+        const cnt = k.qIds.length;
+        const el = document.createElement('span');
+        el.className = 'kw-chip' + (cnt <= 2 ? ' f1' : cnt <= 5 ? ' f2' : ' f3');
+        if (selected.has(k.word)) el.classList.add('active');
+        el.dataset.w = k.word;
+        el.innerHTML = `${esc(k.display || k.word)} <span class="src">${cnt}</span>`;
+        el.addEventListener('click', () => toggleKw(k.word));
+        frag.appendChild(el);
+    }
+
+    box.appendChild(frag);
+    const info = $('kwVisCount');
+    const hasFilter = selected.size > 0 || textQuery.trim() || numInput || selUnit;
+    if (hasFilter) { info.textContent = `当前范围 ${shown} 个关键词（全部 ${kwList.length} 个）`; info.style.display = ''; }
+    else { info.textContent = `共 ${shown} 个关键词`; info.style.display = ''; }
+}
+
+function toggleKw(w) { if (selected.has(w)) selected.delete(w); else selected.add(w); autoScope(); refreshUI(); }
+
+function clearAllFilters() {
+    selected.clear(); numInput = ''; selUnit = ''; textQuery = '';
+    $('numField').value = ''; $('textSearch').value = '';
+    $('textSearchClear').style.display = 'none';
+    $('kwFilter').value = ''; $('kwFilterClear').style.display = 'none';
+    scopeQ = true; scopeA = true; syncNumUI(); renderUnits(); refreshUI();
+}
+
+function autoScope() {
+    scopeQ = true; scopeA = true;
+}
+
+function toggleScope(which) { if (which === 'q') scopeQ = !scopeQ; else scopeA = !scopeA; if (!scopeQ && !scopeA) { scopeQ = true; scopeA = true; } refreshUI(); }
+
+function refreshUI() {
+    const bar = $('selBar'), chips = $('selChips'), row = $('scopeRow');
+    const hasActiveFilter = selected.size > 0 || textQuery.trim() || numInput || selUnit;
+    if (selected.size > 0) {
+        bar.style.display = 'block';
+        chips.innerHTML = '';
+        for (const w of selected) { const s = document.createElement('span'); s.className = 'sel-chip'; s.textContent = w + ' ✕'; s.addEventListener('click', () => { selected.delete(w); autoScope(); refreshUI(); }); chips.appendChild(s); }
+    } else { bar.style.display = 'none'; }
+
+    if (hasActiveFilter) {
+        row.style.display = 'flex';
+        $('btnScopeQ').classList.toggle('on', scopeQ); $('btnScopeA').classList.toggle('on', scopeA);
+        $('scopeHint').textContent = '';
+    } else { row.style.display = 'none'; }
+    renderKwChips(); refreshResults();
+}
+
+function refreshAll() { renderKwChips(); refreshResults(); }
+function refreshResults() { renderResults(getFiltered()); }
+
+/* ===== Search / Filter ===== */
+
+function getFiltered() {
+    let indices = allIdx();
+
+    if (selected.size > 0) {
+        const sets = [...selected].map(w => {
+            const kw = kwData[w]; if (!kw) return new Set();
+            return new Set(kw.qIds);
+        });
+        let res = new Set(sets[0]);
+        for (let i = 1; i < sets.length; i++) res = new Set([...res].filter(x => sets[i].has(x)));
+        indices = [...res];
+    }
+
+    if (textQuery.trim()) {
+        const terms = textQuery.toLowerCase().split(/\s+/).filter(t => t);
+        indices = indices.filter(i => {
+            const q = questions[i], qL = q[1].toLowerCase(), aL = q[2].toLowerCase();
+            return terms.every(t => (scopeQ && qL.includes(t)) || (scopeA && aL.includes(t)));
+        });
+    }
+
+    const numRe = buildNumRe();
+    if (numRe) {
+        indices = indices.filter(i => {
+            const q = questions[i];
+            return (scopeQ && numRe.test(q[1])) || (scopeA && numRe.test(q[2]));
+        });
+    }
+    return applySortOrder(indices);
+}
+
+function applySortOrder(indices) {
+    const mode = $('sortMode') ? $('sortMode').value : 'default';
+    if (mode === 'alpha') {
+        return indices.sort((a, b) => {
+            const qa = questions[a][1], qb = questions[b][1];
+            return qa.localeCompare(qb, 'zh-CN');
+        });
+    }
+    if (mode === 'similar') {
+        return sortBySimilarity(indices);
+    }
+    return indices.sort((a, b) => a - b);
+}
+
+function onSortChange() { refreshResults(); }
+
+function sortBySimilarity(indices) {
+    if (indices.length <= 1) return indices;
+    if (indices.length > 2000) return indices.sort((a, b) => questions[a][1].localeCompare(questions[b][1], 'zh-CN'));
+
+    const texts = indices.map(i => questions[i][1].toLowerCase());
+    const bigrams = texts.map(t => {
+        const s = new Set();
+        for (let i = 0; i < t.length - 1; i++) s.add(t.substring(i, i + 2));
+        return s;
+    });
+
+    function sim(a, b) {
+        if (a.size === 0 && b.size === 0) return 1;
+        let inter = 0;
+        for (const x of a) if (b.has(x)) inter++;
+        return (2 * inter) / (a.size + b.size);
+    }
+
+    const n = indices.length;
+    const used = new Uint8Array(n);
+    const order = [0];
+    used[0] = 1;
+
+    for (let step = 1; step < n; step++) {
+        const last = order[step - 1];
+        let bestJ = -1, bestSim = -1;
+        for (let j = 0; j < n; j++) {
+            if (used[j]) continue;
+            const s = sim(bigrams[last], bigrams[j]);
+            if (s > bestSim) { bestSim = s; bestJ = j; }
+        }
+        used[bestJ] = 1;
+        order.push(bestJ);
+    }
+
+    return order.map(j => indices[j]);
+}
+
+function buildNumRe() {
+    if (!numInput && !selUnit) return null;
+    let p = '';
+    if (numInput) p += '(?<![\\d.])' + numInput.replace(/\./g, '\\.') + '(?![\\d.])';
+    if (numInput && selUnit) p += '\\s*';
+    if (selUnit) p += escRe(selUnit);
+    try { return new RegExp(p, 'i'); } catch { return null; }
+}
+
+/* ===== Render ===== */
+
+function allIdx() { return questions.map((_, i) => i); }
+
+function renderResults(indices) {
+    currentIdx = indices; displayCount = 0;
+    $('qList').innerHTML = ''; $('resCnt').textContent = `共 ${indices.length} 题`;
+    if (indices.length === 0) { $('qList').innerHTML = '<div class="no-result">没有匹配的题目</div>'; $('loadMore').style.display = 'none'; return; }
+    loadMore();
+}
+
+function loadMore() {
+    const end = Math.min(displayCount + PAGE, currentIdx.length);
+    const frag = document.createDocumentFragment();
+    for (let i = displayCount; i < end; i++) frag.appendChild(buildCard(currentIdx[i]));
+    $('qList').appendChild(frag); displayCount = end;
+    $('loadMore').style.display = displayCount < currentIdx.length ? 'block' : 'none';
+}
+
+function buildCard(idx) {
+    const q = questions[idx], card = document.createElement('div');
+    card.className = 'q-card';
+    let qH = esc(q[1]), aH = esc(q[2]);
+
+    const hlTerms = [];
+    for (const w of selected) hlTerms.push(escRe(w));
+    if (textQuery.trim()) for (const t of textQuery.split(/\s+/).filter(t => t)) hlTerms.push(escRe(t));
+
+    for (const t of hlTerms) {
+        const re = new RegExp(`(${t})`, 'gi');
+        if (scopeQ) qH = qH.replace(re, '<span class="hl">$1</span>');
+        if (scopeA) aH = aH.replace(re, '<span class="hl">$1</span>');
+    }
+    const numRe = buildNumRe();
+    if (numRe) {
+        const hlRe = new RegExp(`(${numRe.source})`, 'gi');
+        if (scopeQ) qH = qH.replace(hlRe, '<span class="hl">$1</span>');
+        if (scopeA) aH = aH.replace(hlRe, '<span class="hl">$1</span>');
+    }
+    card.innerHTML = `<div class="q-num"><span class="q-edit-btn" data-idx="${idx}">编辑</span>#${esc(q[0])}</div><div class="q-text">${qH}</div>
+        <div class="a-wrap open" onclick="this.classList.toggle('open')"><div class="a-lbl"><span class="arrow">▶</span> 答案</div><div class="a-body">${aH}</div></div>`;
+    card.querySelector('.q-edit-btn').addEventListener('click', e => { e.stopPropagation(); openEditor(idx); });
+    return card;
+}
+
+function clearAllData() {
+    if (!confirm('确定清空所有题目吗？此操作不可恢复（包括云端数据）。')) return;
+    questions = []; localStorage.removeItem(STORE_KEY);
+    customKw = {}; localStorage.removeItem(KW_CUSTOM_KEY);
+    sb.from('app_data').delete().eq('key', 'questions').then(() => {});
+    sb.from('app_data').delete().eq('key', 'custom_kw').then(() => {});
+    kwData = {}; kwList = []; unitList = []; selected.clear(); numInput = ''; selUnit = ''; textQuery = '';
+    $('numField').value = ''; $('textSearch').value = '';
+    $('kwFilter').value = ''; $('kwFilterClear').style.display = 'none';
+    $('statsCard').style.display = 'none'; $('kwCard').style.display = 'none'; $('resCard').style.display = 'none';
+    $('dupInfo').style.display = 'none'; $('addInfo').style.display = 'none'; updateUploadZone();
+    showSync('success', '云端数据已清空');
+}
+
+function esc(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+function escRe(s) { return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
+
+/* ===== Custom Keywords Store ===== */
+
+let customKw = {};
+
+function applyCustomKw() {
+    for (const [oldW, info] of Object.entries(customKw)) {
+        if (info && info.renamed && info.renamed !== oldW) {
+            const data = kwData[oldW];
+            if (data) {
+                delete kwData[oldW];
+                const newW = info.renamed;
+                if (kwData[newW]) {
+                    const merged = new Set([...kwData[newW].qIds, ...data.qIds]);
+                    kwData[newW].qIds = [...merged];
+                    kwData[newW].display = bestCase(newW, questions, kwData[newW].qIds);
+                } else {
+                    kwData[newW] = { word: newW, qIds: data.qIds, display: bestCase(newW, questions, data.qIds) };
+                }
+            }
+        }
+    }
+    for (const w of Object.keys(customKw)) {
+        if (customKw[w] === null) {
+            delete kwData[w];
+        } else if (customKw[w] && customKw[w].added) {
+            if (!kwData[w]) {
+                const qIds = [];
+                const wl = w.toLowerCase();
+                for (let i = 0; i < questions.length; i++) {
+                    if (questions[i][1].toLowerCase().includes(wl) || questions[i][2].toLowerCase().includes(wl)) qIds.push(i);
+                }
+                if (qIds.length > 0) kwData[w] = { word: w, qIds, display: bestCase(w, questions, qIds) };
+            }
+        }
+    }
+    for (const kw of Object.values(kwData)) {
+        if (!kw.display) kw.display = bestCase(kw.word, questions, kw.qIds);
+    }
+    sortAndUpdateKwList();
+}
+
+function sortAndUpdateKwList() {
+    kwList = Object.values(kwData).sort((a, b) => {
+        const ai = getInitial(a.word), bi = getInitial(b.word);
+        if (ai !== bi) return ai.localeCompare(bi);
+        const aEn = /^[a-z]/i.test(a.word), bEn = /^[a-z]/i.test(b.word);
+        if (aEn !== bEn) return aEn ? -1 : 1;
+        return a.word.localeCompare(b.word, 'zh-CN');
+    });
+    $('sKw').textContent = kwList.length;
+}
+
+function cleanEmptyKw() {
+    for (const [w, kw] of Object.entries(kwData)) {
+        if (!kw.qIds || kw.qIds.length === 0) delete kwData[w];
+    }
+    sortAndUpdateKwList();
+}
+
+/* ===== Question Editor ===== */
+
+let edIdx = -1;
+let edKws = [];
+
+function openEditor(idx) {
+    edIdx = idx;
+    const q = questions[idx];
+    $('edTitle').textContent = `编辑题目 #${q[0]}`;
+    $('edQ').value = q[1];
+    $('edA').value = q[2];
+
+    edKws = [];
+    for (const [w, kw] of Object.entries(kwData)) {
+        if (kw.qIds.includes(idx)) edKws.push(w);
+    }
+    edKws.sort();
+    renderEdKwChips();
+
+    $('edKwInput').value = '';
+    $('edSelHint').style.display = 'none';
+    $('edAddSelBtn').style.display = 'none';
+    $('edModal').classList.add('open');
+
+    $('edQ').addEventListener('mouseup', onEdTextSelect);
+    $('edQ').addEventListener('keyup', onEdTextSelect);
+    $('edA').addEventListener('mouseup', onEdTextSelect);
+    $('edA').addEventListener('keyup', onEdTextSelect);
+}
+
+function closeEditor() {
+    $('edModal').classList.remove('open');
+    $('edQ').removeEventListener('mouseup', onEdTextSelect);
+    $('edQ').removeEventListener('keyup', onEdTextSelect);
+    $('edA').removeEventListener('mouseup', onEdTextSelect);
+    $('edA').removeEventListener('keyup', onEdTextSelect);
+}
+
+function onEdTextSelect() {
+    const sel = window.getSelection ? window.getSelection().toString().trim() :
+                (document.selection ? document.selection.createRange().text.trim() : '');
+    if (sel && sel.length > 0 && sel.length <= 30) {
+        $('edSelText').textContent = sel;
+        $('edSelHint').style.display = 'block';
+        $('edAddSelBtn').style.display = '';
+        $('edAddSelBtn').dataset.sel = sel;
+    } else {
+        $('edSelHint').style.display = 'none';
+        $('edAddSelBtn').style.display = 'none';
+    }
+}
+
+function kwDisplay(w) { return (kwData[w] && kwData[w].display) ? kwData[w].display : w; }
+
+function renderEdKwChips() {
+    const box = $('edKwChips');
+    box.innerHTML = '';
+    for (const w of edKws) {
+        const chip = document.createElement('span');
+        chip.className = 'ed-kw-chip';
+        chip.innerHTML = `${esc(kwDisplay(w))}<span class="ed-kw-x" data-w="${esc(w)}">&times;</span>`;
+        chip.querySelector('.ed-kw-x').addEventListener('click', function() {
+            edKws = edKws.filter(k => k !== this.dataset.w);
+            renderEdKwChips();
+        });
+        box.appendChild(chip);
+    }
+    if (edKws.length === 0) box.innerHTML = '<span style="color:#bbb;font-size:12px">暂无关键词</span>';
+}
+
+function edAddKw() {
+    const val = $('edKwInput').value.trim().toLowerCase();
+    if (!val) return;
+    if (!edKws.includes(val)) { edKws.push(val); edKws.sort(); renderEdKwChips(); }
+    $('edKwInput').value = '';
+}
+
+function edAddSelection() {
+    const sel = ($('edAddSelBtn').dataset.sel || '').trim().toLowerCase();
+    if (!sel) return;
+    if (!edKws.includes(sel)) { edKws.push(sel); edKws.sort(); renderEdKwChips(); }
+    $('edSelHint').style.display = 'none';
+    $('edAddSelBtn').style.display = 'none';
+}
+
+function edSave() {
+    if (edIdx < 0) return;
+    const newQ = $('edQ').value.trim();
+    const newA = $('edA').value.trim();
+    if (!newQ) { alert('题目不能为空'); return; }
+
+    questions[edIdx][1] = newQ;
+    questions[edIdx][2] = newA;
+    saveStore();
+
+    const oldAutoKws = new Set(Object.keys(buildKeywords(questions)));
+    for (const w of edKws) {
+        if (!oldAutoKws.has(w)) {
+            if (!customKw[w]) customKw[w] = { added: true };
+        }
+    }
+
+    const prevKws = [];
+    for (const [w, kw] of Object.entries(kwData)) {
+        if (kw.qIds.includes(edIdx)) prevKws.push(w);
+    }
+    for (const w of prevKws) {
+        if (!edKws.includes(w) && !customKw[w]) {
+            customKw[w] = null;
+        }
+    }
+
+    saveCustomKw();
+
+    kwData = buildKeywords(questions);
+    applyCustomKw();
+
+    for (const w of edKws) {
+        if (!kwData[w]) kwData[w] = { word: w, qIds: [], display: bestCase(w, questions, [edIdx]) };
+        if (!kwData[w].qIds.includes(edIdx)) kwData[w].qIds.push(edIdx);
+        if (!kwData[w].display) kwData[w].display = bestCase(w, questions, kwData[w].qIds);
+    }
+
+    cleanEmptyKw();
+
+    closeEditor();
+    renderKwChips();
+    refreshResults();
+}
+
+function edDelete() {
+    if (edIdx < 0) return;
+    if (!confirm('确定删除此题吗？')) return;
+    const delIdx = edIdx;
+
+    questions.splice(delIdx, 1);
+    saveStore();
+
+    for (const [w, info] of Object.entries(customKw)) {
+        if (info && info.added) {
+            const wl = w.toLowerCase();
+            const hasMatch = questions.some(q => q[1].toLowerCase().includes(wl));
+            if (!hasMatch) { customKw[w] = null; }
+        }
+    }
+    saveCustomKw();
+
+    kwData = buildKeywords(questions);
+    applyCustomKw();
+    cleanEmptyKw();
+
+    unitList = extractUnits(questions);
+    $('sTotal').textContent = questions.length;
+    $('sKw').textContent = kwList.length;
+    $('sUnit').textContent = unitList.length;
+
+    closeEditor();
+    selected.clear();
+    renderKwChips(); renderUnits(); syncNumUI();
+    renderResults(getFiltered());
+    updateUploadZone();
+}
+
+/* ===== Keyword Manager ===== */
+
+function openKwManager() {
+    $('kwmSearch').value = '';
+    renderKwmList();
+    $('kwmModal').classList.add('open');
+}
+
+function closeKwManager() {
+    $('kwmModal').classList.remove('open');
+    renderKwChips();
+    refreshResults();
+}
+
+function renderKwmList() {
+    const box = $('kwmList');
+    box.innerHTML = '';
+    const filter = ($('kwmSearch').value || '').toLowerCase();
+    const items = kwList.filter(k => !filter || k.word.includes(filter));
+    if (items.length === 0) { box.innerHTML = '<div class="kwm-empty">没有匹配的关键词</div>'; return; }
+    const frag = document.createDocumentFragment();
+    for (const k of items) {
+        const row = document.createElement('div');
+        row.className = 'kwm-row';
+        row.innerHTML = `<span class="kwm-word">${esc(k.display || k.word)}</span><span class="kwm-cnt">${k.qIds.length}题</span>
+            <div class="kwm-actions">
+                <button class="kwm-btn" data-action="rename" data-w="${esc(k.word)}">重命名</button>
+                <button class="kwm-btn" data-action="merge" data-w="${esc(k.word)}">合并</button>
+                <button class="kwm-btn danger" data-action="delete" data-w="${esc(k.word)}">删除</button>
+            </div>`;
+        row.querySelectorAll('.kwm-btn').forEach(btn => {
+            btn.addEventListener('click', () => kwmAction(btn.dataset.action, btn.dataset.w));
+        });
+        frag.appendChild(row);
+    }
+    box.appendChild(frag);
+}
+
+function kwmAction(action, word) {
+    if (action === 'delete') {
+        if (!confirm(`确定删除关键词「${word}」吗？`)) return;
+        delete kwData[word];
+        customKw[word] = null;
+        saveCustomKw();
+        refreshKwmAfterChange();
+    } else if (action === 'rename') {
+        const newName = prompt(`将「${word}」重命名为：`, word);
+        if (!newName || newName.trim() === '' || newName.trim().toLowerCase() === word.toLowerCase()) return;
+        const nn = newName.trim().toLowerCase();
+        const data = kwData[word];
+        if (!data) return;
+        delete kwData[word];
+        if (kwData[nn]) {
+            const merged = new Set([...kwData[nn].qIds, ...data.qIds]);
+            kwData[nn].qIds = [...merged];
+            kwData[nn].display = bestCase(nn, questions, kwData[nn].qIds);
+        } else {
+            const allIds = data.qIds;
+            kwData[nn] = { word: nn, qIds: allIds, display: bestCase(nn, questions, allIds) };
+        }
+        customKw[word] = { renamed: nn };
+        saveCustomKw();
+        refreshKwmAfterChange();
+    } else if (action === 'merge') {
+        const target = prompt(`将「${word}」合并到哪个关键词？（输入目标关键词）`);
+        if (!target || target.trim() === '') return;
+        const tn = target.trim().toLowerCase();
+        if (tn === word.toLowerCase()) return;
+        const data = kwData[word];
+        if (!data) return;
+        delete kwData[word];
+        if (kwData[tn]) {
+            const merged = new Set([...kwData[tn].qIds, ...data.qIds]);
+            kwData[tn].qIds = [...merged];
+            kwData[tn].display = bestCase(tn, questions, kwData[tn].qIds);
+        } else {
+            kwData[tn] = { word: tn, qIds: data.qIds, display: bestCase(tn, questions, data.qIds) };
+        }
+        customKw[word] = null;
+        if (!customKw[tn]) customKw[tn] = { added: true };
+        saveCustomKw();
+        refreshKwmAfterChange();
+    }
+}
+
+function refreshKwmAfterChange() {
+    cleanEmptyKw();
+    renderKwmList();
+}
+
+/* ===== Keyword Export / Import ===== */
+
+function kwExport(fmt) {
+    const rows = kwList.map(k => ({
+        word: k.word,
+        display: k.display || k.word,
+        count: k.qIds.length,
+        qIds: k.qIds
+    }));
+    if (fmt === 'json') {
+        downloadBlob(JSON.stringify(rows, null, 2), 'keywords.json', 'application/json');
+    } else if (fmt === 'csv') {
+        const csvEsc = s => '"' + String(s).replace(/"/g, '""') + '"';
+        let csv = '\uFEFF关键词,显示名,题目数,题目ID\n';
+        for (const r of rows) csv += [csvEsc(r.word), csvEsc(r.display), r.count, csvEsc(r.qIds.join(';'))].join(',') + '\n';
+        downloadBlob(csv, 'keywords.csv', 'text/csv;charset=utf-8');
+    } else if (fmt === 'xlsx') {
+        downloadXlsx(rows);
+    }
+}
+
+function downloadBlob(content, name, type) {
+    const blob = new Blob([content], { type });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href = url; a.download = name; a.click();
+    URL.revokeObjectURL(url);
+}
+
+function downloadXlsx(rows) {
+    const xmlEsc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    let sheet = '<?xml version="1.0" encoding="UTF-8"?>\n' +
+        '<?mso-application progid="Excel.Sheet"?>\n' +
+        '<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">\n' +
+        '<Worksheet ss:Name="关键词"><Table>\n';
+    sheet += '<Row><Cell><Data ss:Type="String">关键词</Data></Cell>' +
+        '<Cell><Data ss:Type="String">显示名</Data></Cell>' +
+        '<Cell><Data ss:Type="Number">题目数</Data></Cell>' +
+        '<Cell><Data ss:Type="String">题目ID</Data></Cell></Row>\n';
+    for (const r of rows) {
+        sheet += `<Row><Cell><Data ss:Type="String">${xmlEsc(r.word)}</Data></Cell>` +
+            `<Cell><Data ss:Type="String">${xmlEsc(r.display)}</Data></Cell>` +
+            `<Cell><Data ss:Type="Number">${r.count}</Data></Cell>` +
+            `<Cell><Data ss:Type="String">${xmlEsc(r.qIds.join(';'))}</Data></Cell></Row>\n`;
+    }
+    sheet += '</Table></Worksheet></Workbook>';
+    downloadBlob(sheet, 'keywords.xls', 'application/vnd.ms-excel');
+}
+
+let pendingImport = null;
+
+function kwImportFileHandler(input) {
+    const file = input.files[0];
+    if (!file) return;
+    input.value = '';
+    const ext = file.name.split('.').pop().toLowerCase();
+    const reader = new FileReader();
+
+    if (ext === 'json') {
+        reader.onload = function(e) {
+            let data;
+            try { data = JSON.parse(e.target.result); } catch { alert('JSON 格式错误'); return; }
+            if (!Array.isArray(data)) { alert('JSON 需要是关键词数组'); return; }
+            pendingImport = data.map(k => ({ word: (k.word || '').toLowerCase(), display: k.display || k.word || '' }));
+            showImportDialog(pendingImport);
+        };
+        reader.readAsText(file);
+    } else if (ext === 'csv') {
+        reader.onload = function(e) {
+            const text = e.target.result;
+            const parsed = parseKwCsv(text);
+            if (!parsed || parsed.length === 0) { alert('CSV 中没有找到有效的关键词'); return; }
+            pendingImport = parsed;
+            showImportDialog(pendingImport);
+        };
+        reader.readAsText(file, 'UTF-8');
+    } else if (ext === 'xlsx' || ext === 'xls') {
+        reader.onload = function(e) {
+            const text = e.target.result;
+            const parsed = parseKwXml(text);
+            if (!parsed || parsed.length === 0) { alert('Excel 文件中没有找到有效的关键词（仅支持 XML Spreadsheet 格式，即本工具导出的格式）'); return; }
+            pendingImport = parsed;
+            showImportDialog(pendingImport);
+        };
+        reader.readAsText(file, 'UTF-8');
+    } else {
+        alert('不支持的文件格式，请使用 .json / .csv / .xls 文件');
+    }
+}
+
+function parseKwCsv(text) {
+    const lines = text.replace(/\r\n?/g, '\n').split('\n');
+    const results = [];
+    let startRow = 0;
+    if (lines.length > 0 && /关键词|keyword|word/i.test(lines[0])) startRow = 1;
+    for (let i = startRow; i < lines.length; i++) {
+        const line = lines[i].trim();
+        if (!line) continue;
+        const cols = [];
+        let inQ = false, cur = '';
+        for (let c = 0; c < line.length; c++) {
+            const ch = line[c];
+            if (ch === '"') { if (inQ && line[c+1] === '"') { cur += '"'; c++; } else { inQ = !inQ; } }
+            else if (ch === ',' && !inQ) { cols.push(cur.trim()); cur = ''; }
+            else { cur += ch; }
+        }
+        cols.push(cur.trim());
+        const word = (cols[0] || '').replace(/^\uFEFF/, '').toLowerCase();
+        if (!word) continue;
+        const display = cols[1] || cols[0] || word;
+        results.push({ word, display });
+    }
+    return results;
+}
+
+function parseKwXml(text) {
+    const results = [];
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(text, 'text/xml');
+    const rows = doc.querySelectorAll('Row');
+    let startRow = 0;
+    if (rows.length > 0) {
+        const firstCell = rows[0].querySelector('Data');
+        if (firstCell && /关键词|keyword|word/i.test(firstCell.textContent)) startRow = 1;
+    }
+    for (let i = startRow; i < rows.length; i++) {
+        const cells = rows[i].querySelectorAll('Cell');
+        if (cells.length === 0) continue;
+        const word = (cells[0].textContent || '').trim().toLowerCase();
+        if (!word) continue;
+        const display = cells.length > 1 ? (cells[1].textContent || '').trim() : word;
+        results.push({ word, display });
+    }
+    return results;
+}
+
+function showImportDialog(data) {
+    const body = $('kwImportBody');
+    const footer = $('kwImportFooter');
+    const existingWords = new Set(kwList.map(k => k.word));
+    const newKws = data.filter(k => !existingWords.has(k.word.toLowerCase()));
+    const dupKws = data.filter(k => existingWords.has(k.word.toLowerCase()));
+
+    let html = `<p style="font-size:13px;margin-bottom:10px">共 <b>${data.length}</b> 个关键词`;
+    if (dupKws.length > 0) {
+        html += `，其中 <b style="color:#e6a23c">${dupKws.length}</b> 个与现有关键词重复`;
+    }
+    html += `，<b style="color:#67c23a">${newKws.length}</b> 个为新增。</p>`;
+
+    if (dupKws.length > 0) {
+        html += `<div class="dup-list-box">`;
+        html += `<div style="font-weight:600;margin-bottom:4px;color:#666">重复关键词：</div>`;
+        for (const k of dupKws) {
+            html += `<span class="dup-item">${esc(k.display || k.word)}</span>　`;
+        }
+        html += `</div>`;
+    }
+    body.innerHTML = html;
+
+    footer.innerHTML = '';
+    const btnClose = document.createElement('button');
+    btnClose.className = 'ed-btn ed-btn-default';
+    btnClose.textContent = '取消';
+    btnClose.onclick = () => $('kwImportModal').classList.remove('open');
+
+    const btnOverwrite = document.createElement('button');
+    btnOverwrite.className = 'ed-btn ed-btn-danger';
+    btnOverwrite.textContent = '全部覆盖';
+    btnOverwrite.onclick = () => doImport('overwrite');
+
+    footer.appendChild(btnClose);
+
+    if (dupKws.length > 0 && newKws.length > 0) {
+        const btnSkip = document.createElement('button');
+        btnSkip.className = 'ed-btn ed-btn-default';
+        btnSkip.textContent = `仅导入新增 (${newKws.length})`;
+        btnSkip.style.borderColor = '#67c23a'; btnSkip.style.color = '#67c23a';
+        btnSkip.onclick = () => doImport('skip-dup');
+        footer.appendChild(btnSkip);
+    }
+    footer.appendChild(btnOverwrite);
+
+    if (newKws.length > 0 || dupKws.length > 0) {
+        const btnMerge = document.createElement('button');
+        btnMerge.className = 'ed-btn ed-btn-primary';
+        btnMerge.textContent = '增量合并（全部）';
+        btnMerge.onclick = () => doImport('merge-all');
+        footer.appendChild(btnMerge);
+    }
+
+    $('kwImportModal').classList.add('open');
+}
+
+function doImport(mode) {
+    if (!pendingImport) return;
+    const data = pendingImport;
+    pendingImport = null;
+
+    if (mode === 'overwrite') {
+        kwData = {};
+        customKw = {};
+        for (const k of data) {
+            const w = k.word.toLowerCase();
+            const qIds = [];
+            for (let i = 0; i < questions.length; i++) {
+                if (questions[i][1].toLowerCase().includes(w) || questions[i][2].toLowerCase().includes(w)) qIds.push(i);
+            }
+            if (qIds.length > 0) {
+                kwData[w] = { word: w, qIds, display: bestCase(w, questions, qIds) };
+                customKw[w] = { added: true };
+            }
+        }
+    } else {
+        const existingWords = new Set(Object.keys(kwData));
+        const items = mode === 'skip-dup'
+            ? data.filter(k => !existingWords.has(k.word.toLowerCase()))
+            : data;
+        for (const k of items) {
+            const w = k.word.toLowerCase();
+            const qIds = [];
+            for (let i = 0; i < questions.length; i++) {
+                if (questions[i][1].toLowerCase().includes(w) || questions[i][2].toLowerCase().includes(w)) qIds.push(i);
+            }
+            if (qIds.length > 0) {
+                if (kwData[w]) {
+                    const merged = new Set([...kwData[w].qIds, ...qIds]);
+                    kwData[w].qIds = [...merged];
+                    kwData[w].display = bestCase(w, questions, kwData[w].qIds);
+                } else {
+                    kwData[w] = { word: w, qIds, display: bestCase(w, questions, qIds) };
+                }
+                if (!customKw[w]) customKw[w] = { added: true };
+            }
+        }
+    }
+
+    saveCustomKw();
+    cleanEmptyKw();
+    renderKwmList();
+    $('kwImportModal').classList.remove('open');
+}
+
+init();
+</script>
+</body>
+</html>
