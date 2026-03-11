@@ -1344,8 +1344,8 @@ function initVoiceRec() {
         $('textSearch').value = combined;
         textQuery = combined;
         $('textSearchClear').style.display = combined ? '' : 'none';
-        $('kwFilter').value = combined;
-        $('kwFilterClear').style.display = combined ? '' : 'none';
+        $('kwFilter').value = '';
+        $('kwFilterClear').style.display = 'none';
         voiceUsed = true;
         refreshAll();
     };
