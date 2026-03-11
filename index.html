@@ -139,7 +139,7 @@
         .kw-filter-clear { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); cursor: pointer; color: #c0c4cc; font-size: 14px; display: none; padding: 2px 4px; }
         .kw-filter-clear:hover { color: #f56c6c; }
 
-        .kw-box { display: flex; flex-wrap: wrap; gap: 7px; max-height: 400px; overflow-y: auto; padding: 2px; align-content: flex-start; transition: max-height 0.3s; }
+        .kw-box { display: flex; flex-wrap: wrap; gap: 4px; max-height: none; overflow-y: auto; padding: 2px; align-content: flex-start; transition: max-height 0.3s; }
         .kw-box.collapsed { max-height: 0; overflow: hidden; padding: 0; margin: 0; }
         .kw-toggle-btn {
             display: none; width: 100%; padding: 6px; border: 1px solid #ebeef5; border-radius: 8px;
@@ -147,20 +147,19 @@
             margin-top: 6px; transition: all 0.2s;
         }
         .kw-toggle-btn:hover { border-color: #409eff; color: #409eff; }
-        .kw-chip { display: inline-flex; align-items: center; gap: 4px; padding: 5px 13px; border-radius: 18px; font-size: 12px; cursor: pointer; transition: all 0.2s; border: 1.5px solid; user-select: none; }
+        .kw-chip { display: inline-flex; align-items: center; gap: 3px; padding: 3px 10px; border-radius: 14px; font-size: 11px; cursor: pointer; transition: all 0.2s; border: 1px solid; user-select: none; }
         .kw-chip .src { font-size: 9px; opacity: 0.6; }
         .kw-chip.f1 { background: #f0f9eb; border-color: #b3e19d; color: #4ea832; }
         .kw-chip.f2 { background: #fdf6ec; border-color: #f3d19e; color: #cf8e1e; }
         .kw-chip.f3 { background: #fef0f0; border-color: #fab6b6; color: #e04848; }
         .kw-chip.active { background: #409eff !important; border-color: #409eff !important; color: #fff !important; box-shadow: 0 3px 10px rgba(64,158,255,0.3); }
         .kw-chip:hover:not(.active) { transform: translateY(-1px); box-shadow: 0 2px 6px rgba(0,0,0,0.08); }
-        .kw-visible-count { font-size: 11px; color: #bbb; margin-bottom: 8px; }
+        .kw-visible-count { font-size: 11px; color: #bbb; margin-bottom: 4px; }
         .kw-letter-hdr {
-            width: 100%; font-size: 12px; font-weight: 700; color: #409eff;
-            padding: 8px 4px 3px; margin-top: 2px;
-            border-bottom: 1px solid #ebeef5;
+            display: inline-flex; font-size: 11px; font-weight: 700; color: #409eff;
+            padding: 3px 7px; margin: 1px 2px; border-radius: 4px;
+            background: #eef3ff;
         }
-        .kw-letter-hdr:first-child { margin-top: 0; padding-top: 2px; }
 
         .results-hdr { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
         .results-cnt { color: #888; font-size: 13px; }
