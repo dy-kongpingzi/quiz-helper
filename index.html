@@ -1117,18 +1117,21 @@ function buildKeywords(qs) {
         for (const w of qTokens[i]) { if (!wordIdx.has(w)) wordIdx.set(w, new Set()); wordIdx.get(w).add(i); }
     }
 
+    const freqCap = Math.max(Math.floor(N * 0.15), 5);
+
     const picked = new Set();
     for (let i = 0; i < N; i++) {
         const all = [...new Set(qTokens[i])];
         const scored = all.map(w => {
             const freq = wordIdx.get(w)?.size || 0;
             if (isChinese(w) && freq <= 1) return { w, score: -1 };
+            if (freq > freqCap) return { w, score: -1 };
             let score = Math.log(N / Math.max(freq, 1));
             if (isCompound(w)) score *= 1.5;
             return { w, score };
         });
         scored.sort((a, b) => b.score - a.score);
-        for (const { w, score } of scored.slice(0, 3)) {
+        for (const { w, score } of scored.slice(0, 2)) {
             if (score > 0) picked.add(w);
         }
     }
@@ -1151,6 +1154,38 @@ function buildKeywords(qs) {
         if (allCovered) toRemove.add(x);
     }
     for (const w of toRemove) delete result[w];
+
+    const sigMap = new Map();
+    for (const [w, kw] of Object.entries(result)) {
+        const sig = [...kw.qIds].sort((a, b) => a - b).join(',');
+        if (sigMap.has(sig)) {
+            const prev = sigMap.get(sig);
+            if (isCompound(w) && !isCompound(prev)) { delete result[prev]; sigMap.set(sig, w); }
+            else if (!isCompound(w) && isCompound(prev)) { delete result[w]; }
+            else if (w.length < prev.length) { delete result[prev]; sigMap.set(sig, w); }
+            else { delete result[w]; }
+        } else { sigMap.set(sig, w); }
+    }
+
+    const uncovered = new Set();
+    for (let i = 0; i < N; i++) uncovered.add(i);
+    const kept = new Set();
+    const candidates = Object.entries(result).map(([w, kw]) => ({ w, ids: new Set(kw.qIds) }));
+    while (uncovered.size > 0 && candidates.length > 0) {
+        let bestIdx = -1, bestCnt = 0;
+        for (let i = 0; i < candidates.length; i++) {
+            let cnt = 0;
+            for (const id of candidates[i].ids) if (uncovered.has(id)) cnt++;
+            if (cnt > bestCnt) { bestCnt = cnt; bestIdx = i; }
+        }
+        if (bestIdx === -1 || bestCnt === 0) break;
+        kept.add(candidates[bestIdx].w);
+        for (const id of candidates[bestIdx].ids) uncovered.delete(id);
+        candidates.splice(bestIdx, 1);
+    }
+    for (const w of Object.keys(result)) {
+        if (!kept.has(w)) delete result[w];
+    }
 
     return result;
 }
