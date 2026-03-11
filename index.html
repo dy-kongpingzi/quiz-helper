@@ -365,7 +365,7 @@
                 <select id="sortMode" onchange="onSortChange()">
                     <option value="default">默认（添加顺序）</option>
                     <option value="alpha">题目首字母</option>
-                    <option value="similar">题目相似度</option>
+                    <option value="similar" selected>题目相似度</option>
                 </select>
             </div>
             <div class="results-cnt" id="resCnt"></div>
@@ -1375,30 +1375,46 @@ function sortBySimilarity(indices) {
     if (indices.length > 2000) return indices.sort((a, b) => questions[a][1].localeCompare(questions[b][1], 'zh-CN'));
 
     const texts = indices.map(i => questions[i][1].toLowerCase());
+    const n = texts.length;
     const bigrams = texts.map(t => {
         const s = new Set();
         for (let i = 0; i < t.length - 1; i++) s.add(t.substring(i, i + 2));
         return s;
     });
 
-    function sim(a, b) {
-        if (a.size === 0 && b.size === 0) return 1;
-        let inter = 0;
-        for (const x of a) if (b.has(x)) inter++;
-        return (2 * inter) / (a.size + b.size);
+    const simMat = new Float32Array(n * n);
+    for (let i = 0; i < n; i++) {
+        for (let j = i + 1; j < n; j++) {
+            const a = bigrams[i], b = bigrams[j];
+            let inter = 0;
+            for (const x of a) if (b.has(x)) inter++;
+            const s = (a.size + b.size) > 0 ? (2 * inter) / (a.size + b.size) : 0;
+            simMat[i * n + j] = s;
+            simMat[j * n + i] = s;
+        }
     }
 
-    const n = indices.length;
+    const totalSim = new Float32Array(n);
+    for (let i = 0; i < n; i++) {
+        let sum = 0;
+        for (let j = 0; j < n; j++) sum += simMat[i * n + j];
+        totalSim[i] = sum;
+    }
+    let start = 0, maxSum = 0;
+    for (let i = 0; i < n; i++) {
+        if (totalSim[i] > maxSum) { maxSum = totalSim[i]; start = i; }
+    }
+
     const used = new Uint8Array(n);
-    const order = [0];
-    used[0] = 1;
+    const order = [start];
+    used[start] = 1;
 
     for (let step = 1; step < n; step++) {
         const last = order[step - 1];
         let bestJ = -1, bestSim = -1;
         for (let j = 0; j < n; j++) {
             if (used[j]) continue;
-            const s = sim(bigrams[last], bigrams[j]);
+            const s = simMat[last * n + j];
             if (s > bestSim) { bestSim = s; bestJ = j; }
         }
         used[bestJ] = 1;
