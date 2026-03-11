@@ -26,6 +26,15 @@
         .upload-zone .icon { font-size: 44px; margin-bottom: 10px; }
         .upload-zone p { color: #555; font-size: 15px; }
         .upload-zone .hint { color: #aaa; font-size: 12px; margin-top: 6px; }
+        .upload-mini { margin-bottom: 16px; }
+        .upload-mini-btn {
+            width: 100%; padding: 10px 16px; background: #fff; border: 1.5px dashed #d0d5dd;
+            border-radius: 10px; font-size: 13px; color: #888; cursor: pointer;
+            text-align: center; transition: all 0.2s;
+        }
+        .upload-mini-btn:hover { border-color: #409eff; color: #409eff; background: #ecf5ff; }
+        .upload-mini .upload-zone { margin-top: 10px; }
+        .upload-zone.fold { display: none; }
 
         .card {
             background: #fff; border-radius: 14px; padding: 22px 26px;
@@ -304,24 +313,34 @@
         .dup-list-box { max-height: 200px; overflow-y: auto; margin: 10px 0; padding: 10px; background: #f9f9fb; border-radius: 8px; font-size: 12px; line-height: 1.8; }
         .dup-list-box .dup-item { color: #e6a23c; }
         @media (max-width: 768px) {
-            .container { padding: 12px 10px; }
-            .upload-zone { padding: 24px 12px; }
+            .container { padding: 10px 8px; }
             .stat-row { gap: 10px; }
             .modal-overlay { padding: 12px 6px; }
-            header h1 { font-size: 22px; }
-            .card { padding: 14px 12px; }
-            .section-title { font-size: 14px; flex-wrap: wrap; gap: 4px; }
+            header h1 { font-size: 20px; margin-bottom: 2px; }
+            header p { font-size: 11px; }
+            .card { padding: 12px 10px; margin-bottom: 14px; }
+            .section-title { font-size: 13px; flex-wrap: wrap; gap: 4px; }
             .legend { display: none; }
-            .num-section { flex-wrap: wrap; padding: 8px 10px; gap: 8px; }
+            .num-section { flex-wrap: wrap; padding: 6px 8px; gap: 6px; margin-bottom: 10px; }
             .numpad button { width: 28px; height: 26px; font-size: 12px; }
             .num-input-row input { width: 60px; font-size: 13px; padding: 4px 6px; }
             .num-divider { display: none; }
-            .kw-box { max-height: 200px; gap: 5px; }
-            .kw-chip { padding: 3px 9px; font-size: 11px; border-radius: 14px; }
-            .kw-letter-hdr { font-size: 11px; padding: 5px 2px 2px; }
-            .kw-toggle-btn { display: block; }
-            .kw-filter-wrap input { font-size: 13px; padding: 9px 32px 9px 12px; }
-            .text-search-wrap input { font-size: 14px; padding: 10px 36px 10px 12px; }
+            .kw-box { max-height: none; gap: 3px; padding: 0; overflow-y: visible; }
+            .kw-chip { padding: 2px 7px; font-size: 10px; border-radius: 12px; border-width: 1px; }
+            .kw-chip .src { font-size: 8px; }
+            .kw-letter-hdr {
+                width: auto; display: inline-flex; font-size: 10px; font-weight: 700;
+                padding: 2px 6px; margin: 1px 2px; border-bottom: none;
+                background: #eef3ff; border-radius: 4px; color: #409eff;
+            }
+            .kw-toggle-btn { display: none; }
+            .kw-filter-wrap { margin-bottom: 6px; }
+            .kw-filter-wrap input { font-size: 12px; padding: 7px 28px 7px 10px; }
+            .kw-visible-count { font-size: 10px; margin-bottom: 4px; }
+            .text-search-wrap input { font-size: 14px; padding: 10px 60px 10px 12px; }
+            .text-search-wrap { margin-bottom: 8px; }
+            .voice-indicator { padding: 6px 10px; margin-top: 6px; gap: 8px; }
+            .vi-text { font-size: 12px; }
             .results-hdr { flex-wrap: wrap; gap: 6px; }
             .sort-bar { width: 100%; }
             .sort-bar select { flex: 1; }
@@ -329,6 +348,8 @@
             .q-text { font-size: 13px; line-height: 1.6; }
             .a-body { font-size: 13px; padding: 8px 10px; }
             .scope-btn { padding: 4px 12px; font-size: 11px; }
+            .upload-mini-btn { font-size: 12px; padding: 8px 12px; }
+            .upload-zone { padding: 24px 12px; }
         }
     </style>
 </head>
@@ -342,23 +363,6 @@
         <p>上传题库 CSV，通过搜索 / 关键词 / 数字快速定位题目与答案</p>
         <div class="cloud-badge" id="cloudBadge">☁️ 云端同步</div>
     </header>
-
-    <div class="upload-zone" id="dropZone">
-        <div class="icon">📄</div>
-        <p id="uploadText">拖拽 CSV 文件到此处，或点击上传</p>
-        <div class="hint">CSV 格式：序号, 题目, 答案 · 支持增量添加 · 自动清洗答案格式</div>
-        <input type="file" id="fileInput" accept=".csv" style="display:none">
-    </div>
-
-    <div class="card" id="statsCard">
-        <div class="stat-row">
-            <div class="stat-item"><span class="label">题库总数</span><span class="value" id="sTotal">0</span></div>
-            <div class="stat-item"><span class="label">关键词</span><span class="value" id="sKw">0</span></div>
-            <div class="stat-item"><span class="label">数字/单位</span><span class="value" id="sUnit">0</span></div>
-        </div>
-        <div class="dup-info" id="dupInfo"></div>
-        <div class="add-info" id="addInfo"></div>
-    </div>
 
     <div class="card" id="kwCard">
         <div class="section-title"><span>🔍</span>搜索</div>
@@ -398,7 +402,7 @@
                 <span class="num-clear-x" id="numClearX" onclick="numClearAll()">✕</span>
             </div>
             <div class="numpad">
-                <button onclick="numTap('1')">1</button><button onclick="numTap('2')">2</button><button onclick="numTap('3')">3</button><button onclick="numTap('4')">4</button><button onclick="numTap('5')">5</button><button onclick="numTap('6')">6</button><button onclick="numTap('7')">7</button><button onclick="numTap('8')">8</button><button onclick="numTap('9')">9</button><button onclick="numTap('0')">0</button><button onclick="numTap('.')">.</button><button onclick="numBack()">⌫</button>
+                <button onclick="numTap('1')">1</button><button onclick="numTap('2')">2</button><button onclick="numTap('3')">3</button><button onclick="numTap('4')">4</button><button onclick="numTap('5')">5</button><button onclick="numTap('6')">6</button><button onclick="numTap('7')">7</button><button onclick="numTap('8')">8</button><button onclick="numTap('9')">9</button><button onclick="numTap('0')">0</button><button onclick="numTap('.')">.</button>
             </div>
             <div class="num-divider"></div>
             <div class="unit-chips" id="unitChips"></div>
@@ -418,6 +422,26 @@
         <div class="kw-visible-count" id="kwVisCount"></div>
         <div class="kw-box" id="kwBox"></div>
         <button class="kw-toggle-btn" id="kwToggle" onclick="toggleKwBox()">收起关键词 ▲</button>
+    </div>
+
+    <div class="upload-mini" id="uploadMini">
+        <button class="upload-mini-btn" id="uploadMiniBtn" onclick="toggleUpload()">📄 添加/导入题目</button>
+        <div class="upload-zone fold" id="dropZone">
+            <div class="icon">📄</div>
+            <p id="uploadText">拖拽 CSV 文件到此处，或点击上传</p>
+            <div class="hint">CSV 格式：序号, 题目, 答案 · 支持增量添加 · 自动清洗答案格式</div>
+            <input type="file" id="fileInput" accept=".csv" style="display:none">
+        </div>
+    </div>
+
+    <div class="card" id="statsCard">
+        <div class="stat-row">
+            <div class="stat-item"><span class="label">题库总数</span><span class="value" id="sTotal">0</span></div>
+            <div class="stat-item"><span class="label">关键词</span><span class="value" id="sKw">0</span></div>
+            <div class="stat-item"><span class="label">数字/单位</span><span class="value" id="sUnit">0</span></div>
+        </div>
+        <div class="dup-info" id="dupInfo"></div>
+        <div class="add-info" id="addInfo"></div>
     </div>
 
     <div class="card" id="resCard">
@@ -823,6 +847,7 @@ async function init() {
 
     $('loadingOverlay').style.display = 'none';
     if (loaded) { rebuildIndex(); updateUploadZone(); }
+    else { toggleUpload(); }
 }
 
 function loadStoreLocal() {
@@ -898,6 +923,16 @@ function showSync(type, msg) {
 function updateUploadZone() {
     $('uploadText').textContent = questions.length > 0
         ? `已有 ${questions.length} 道题 · 点击继续添加` : '拖拽 CSV 文件到此处，或点击上传';
+    if (questions.length > 0) {
+        $('uploadMiniBtn').textContent = '📄 添加/导入更多题目';
+    } else {
+        $('uploadMiniBtn').textContent = '📄 添加/导入题目';
+    }
+}
+function toggleUpload() {
+    const zone = $('dropZone');
+    zone.classList.toggle('fold');
+    zone.style.display = zone.classList.contains('fold') ? 'none' : '';
 }
 
 /* ===== Answer Cleaning ===== */
@@ -1267,6 +1302,7 @@ function extractUnits(qs) {
 
 function onTextSearchInput(e) {
     textQuery = e.target.value;
+    voiceUsed = false;
     $('textSearchClear').style.display = textQuery ? '' : 'none';
     $('kwFilter').value = textQuery;
     $('kwFilterClear').style.display = textQuery ? '' : 'none';
@@ -1284,6 +1320,7 @@ function clearTextSearch() {
 let voiceRec = null;
 let voiceActive = false;
 let voiceBase = '';
+let voiceUsed = false;
 
 function initVoiceRec() {
     if (voiceRec) return true;
@@ -1293,12 +1330,15 @@ function initVoiceRec() {
     voiceRec.lang = 'zh-CN';
     voiceRec.interimResults = true;
     voiceRec.continuous = true;
-    voiceRec.maxAlternatives = 1;
+    voiceRec.maxAlternatives = 5;
     voiceRec.onresult = function(e) {
         let interim = '', final = '';
         for (let i = e.resultIndex; i < e.results.length; i++) {
-            const t = e.results[i][0].transcript;
-            if (e.results[i].isFinal) final += t; else interim += t;
+            if (e.results[i].isFinal) {
+                final += voicePickBest(e.results[i]);
+            } else {
+                interim += e.results[i][0].transcript;
+            }
         }
         const combined = (voiceBase ? voiceBase + ' ' : '') + final + interim;
         $('textSearch').value = combined;
@@ -1306,6 +1346,7 @@ function initVoiceRec() {
         $('textSearchClear').style.display = combined ? '' : 'none';
         $('kwFilter').value = combined;
         $('kwFilterClear').style.display = combined ? '' : 'none';
+        voiceUsed = true;
         refreshAll();
     };
     voiceRec.onerror = function(e) {
@@ -1318,6 +1359,45 @@ function initVoiceRec() {
         }
     };
     return true;
+}
+
+function voicePickBest(result) {
+    if (result.length <= 1 || kwList.length === 0) return result[0].transcript;
+    let bestT = result[0].transcript, bestScore = -1;
+    for (let a = 0; a < result.length; a++) {
+        const t = result[a].transcript;
+        const score = voiceKwScore(t);
+        if (score > bestScore) { bestScore = score; bestT = t; }
+    }
+    return bestT;
+}
+
+function voiceKwScore(text) {
+    const tl = text.toLowerCase().replace(/\s+/g, '');
+    let score = 0;
+    for (const k of kwList) {
+        if (tl.includes(k.word)) score += k.word.length * 10;
+    }
+    for (let i = 0; i < questions.length; i++) {
+        if (questions[i][1].toLowerCase().includes(tl)) score += 2;
+        if (questions[i][2].toLowerCase().includes(tl)) score += 1;
+    }
+    return score;
+}
+
+function fuzzyIncludes(text, term) {
+    if (text.includes(term)) return true;
+    if (term.length >= 2 && /[\u4e00-\u9fff]/.test(term)) {
+        for (let s = 0; s <= text.length - term.length; s++) {
+            let diff = 0;
+            for (let c = 0; c < term.length; c++) {
+                if (text[s + c] !== term[c]) diff++;
+                if (diff > 1) break;
+            }
+            if (diff <= 1) return true;
+        }
+    }
+    return false;
 }
 
 function toggleVoice() {
@@ -1337,6 +1417,11 @@ function stopVoice() {
     $('voiceBtn').classList.remove('recording');
     $('voiceIndicator').classList.remove('on');
     $('voiceBtn').title = '语音输入';
+    const box = $('kwBox');
+    if (box && box.classList.contains('collapsed')) {
+        box.classList.remove('collapsed');
+        $('kwToggle').textContent = '收起关键词 ▲';
+    }
 }
 
 /* ===== Numpad ===== */
@@ -1404,6 +1489,7 @@ function reoptimizeKw() {
 
 function onKwFilterInput() {
     const val = $('kwFilter').value;
+    voiceUsed = false;
     $('kwFilterClear').style.display = val ? '' : 'none';
     textQuery = val;
     $('textSearch').value = val;
@@ -1519,10 +1605,17 @@ function getFiltered() {
 
     if (textQuery.trim()) {
         const terms = textQuery.toLowerCase().split(/\s+/).filter(t => t);
-        indices = indices.filter(i => {
+        let filtered = indices.filter(i => {
             const q = questions[i], qL = q[1].toLowerCase(), aL = q[2].toLowerCase();
             return terms.every(t => (scopeQ && qL.includes(t)) || (scopeA && aL.includes(t)));
         });
+        if (filtered.length === 0 && voiceUsed) {
+            filtered = indices.filter(i => {
+                const q = questions[i], qL = q[1].toLowerCase(), aL = q[2].toLowerCase();
+                return terms.every(t => (scopeQ && fuzzyIncludes(qL, t)) || (scopeA && fuzzyIncludes(aL, t)));
+            });
+        }
+        indices = filtered;
     }
 
     const numRe = buildNumRe();
