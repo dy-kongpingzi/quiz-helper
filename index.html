@@ -1360,7 +1360,8 @@ function initVoiceRec() {
                 interim += e.results[i][0].transcript;
             }
         }
-        const combined = (voiceBase ? voiceBase + ' ' : '') + final + interim;
+        if (final) voiceBase = (voiceBase ? voiceBase + ' ' : '') + final;
+        const combined = (voiceBase ? voiceBase : '') + (interim ? (voiceBase ? ' ' : '') + interim : '');
         $('textSearch').value = combined;
         textQuery = combined;
         $('textSearchClear').style.display = combined ? '' : 'none';
