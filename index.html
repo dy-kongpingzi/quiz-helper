@@ -1352,6 +1352,7 @@ function initVoiceRec() {
     voiceRec.continuous = true;
     voiceRec.maxAlternatives = 5;
     voiceRec.onresult = function(e) {
+        if (!voiceActive) return;
         let interim = '', final = '';
         for (let i = e.resultIndex; i < e.results.length; i++) {
             if (e.results[i].isFinal) {
@@ -1434,10 +1435,17 @@ function toggleVoice() {
 
 function stopVoice() {
     voiceActive = false;
+    const snap = $('textSearch').value;
+    voiceBase = snap;
+    textQuery = snap;
     if (voiceRec) { try { voiceRec.stop(); } catch {} }
     $('fabVoice').classList.remove('recording');
     $('fabVoiceLabel').textContent = '语音';
     $('voiceIndicator').classList.remove('on');
+    $('textSearch').value = snap;
+    textQuery = snap;
+    $('textSearchClear').style.display = snap ? '' : 'none';
+    refreshAll();
     const box = $('kwBox');
     if (box && box.classList.contains('collapsed')) {
         box.classList.remove('collapsed');
