@@ -388,7 +388,7 @@
         <div class="scope-row" id="scopeRow">
             <span class="scope-lbl">搜索范围：</span>
             <button class="scope-btn on" id="btnScopeQ" onclick="toggleScope('q')">题目</button>
-            <button class="scope-btn on" id="btnScopeA" onclick="toggleScope('a')">答案</button>
+            <button class="scope-btn" id="btnScopeA" onclick="toggleScope('a')">答案</button>
         </div>
         <div class="voice-indicator" id="voiceIndicator">
             <div class="vi-waves"><div class="vi-bar"></div><div class="vi-bar"></div><div class="vi-bar"></div><div class="vi-bar"></div><div class="vi-bar"></div></div>
@@ -794,7 +794,7 @@ let questions = [];
 let kwData = {}, kwList = [];
 let unitList = [];
 let selected = new Set();
-let scopeQ = true, scopeA = true;
+let scopeQ = true, scopeA = false;
 let numInput = '', selUnit = '';
 let textQuery = '';
 let displayCount = 0, currentIdx = [];
@@ -1113,7 +1113,7 @@ function rebuildIndex() {
     selected.clear(); numInput = ''; selUnit = ''; textQuery = '';
     $('numField').value = ''; $('textSearch').value = '';
     $('textSearchClear').style.display = 'none';
-    scopeQ = true; scopeA = true; syncScopeUI();
+    scopeQ = true; scopeA = false; syncScopeUI();
     $('sTotal').textContent = questions.length;
     $('sKw').textContent = kwList.length;
     $('sUnit').textContent = unitList.length;
@@ -1579,7 +1579,7 @@ function clearAllFilters() {
     $('numField').value = ''; $('textSearch').value = '';
     $('textSearchClear').style.display = 'none';
     $('kwFilter').value = ''; $('kwFilterClear').style.display = 'none';
-    scopeQ = true; scopeA = true; syncScopeUI(); syncNumUI(); renderUnits(); refreshUI();
+    scopeQ = true; scopeA = false; syncScopeUI(); syncNumUI(); renderUnits(); refreshUI();
 }
 
 function toggleScope(which) {
