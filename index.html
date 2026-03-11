@@ -109,12 +109,11 @@
         .clear-btn { margin-left: auto; padding: 4px 12px; background: transparent; border: 1px solid #409eff; color: #409eff; border-radius: 12px; font-size: 11px; cursor: pointer; white-space: nowrap; transition: all 0.2s; }
         .clear-btn:hover { background: #409eff; color: #fff; }
 
-        .scope-row { display: none; align-items: center; gap: 10px; margin-bottom: 12px; padding: 8px 14px; background: #f9f9fb; border-radius: 10px; flex-wrap: wrap; }
-        .scope-row .scope-lbl { font-size: 12px; color: #666; white-space: nowrap; }
-        .scope-btn { padding: 5px 18px; border: 1.5px solid #dcdfe6; border-radius: 18px; background: #fff; font-size: 12px; cursor: pointer; transition: all 0.2s; color: #666; font-weight: 500; }
+        .scope-row { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; padding: 0; flex-wrap: wrap; }
+        .scope-row .scope-lbl { font-size: 12px; color: #999; white-space: nowrap; }
+        .scope-btn { padding: 4px 16px; border: 1.5px solid #dcdfe6; border-radius: 18px; background: #fff; font-size: 12px; cursor: pointer; transition: all 0.2s; color: #666; font-weight: 500; }
         .scope-btn.on { background: #409eff; border-color: #409eff; color: #fff; }
         .scope-btn:hover:not(.on) { border-color: #409eff; color: #409eff; }
-        .scope-hint { font-size: 11px; color: #aaa; margin-left: 4px; }
 
         .num-section { display: flex; gap: 10px; margin-bottom: 14px; padding: 10px 14px; background: #fafbfc; border-radius: 10px; align-items: center; flex-wrap: wrap; }
         .num-input-row { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
@@ -371,6 +370,11 @@
             <span class="text-search-clear" id="textSearchClear" onclick="clearTextSearch()">✕</span>
             <button class="voice-btn" id="voiceBtn" onclick="toggleVoice()" title="语音输入">🎤</button>
         </div>
+        <div class="scope-row" id="scopeRow">
+            <span class="scope-lbl">搜索范围：</span>
+            <button class="scope-btn on" id="btnScopeQ" onclick="toggleScope('q')">题目</button>
+            <button class="scope-btn on" id="btnScopeA" onclick="toggleScope('a')">答案</button>
+        </div>
         <div class="voice-indicator" id="voiceIndicator">
             <div class="vi-waves"><div class="vi-bar"></div><div class="vi-bar"></div><div class="vi-bar"></div><div class="vi-bar"></div><div class="vi-bar"></div></div>
             <span class="vi-text">正在聆听...</span>
@@ -383,12 +387,6 @@
                 <div id="selChips"></div>
                 <button class="clear-btn" id="clearBtn">清除全部</button>
             </div>
-        </div>
-        <div class="scope-row" id="scopeRow">
-            <span class="scope-lbl">搜索范围：</span>
-            <button class="scope-btn on" id="btnScopeQ" onclick="toggleScope('q')">题目</button>
-            <button class="scope-btn on" id="btnScopeA" onclick="toggleScope('a')">答案</button>
-            <span class="scope-hint" id="scopeHint"></span>
         </div>
 
         <div class="section-title" style="margin-top:4px">
@@ -1093,7 +1091,7 @@ function rebuildIndex() {
     selected.clear(); numInput = ''; selUnit = ''; textQuery = '';
     $('numField').value = ''; $('textSearch').value = '';
     $('textSearchClear').style.display = 'none';
-    scopeQ = true; scopeA = true;
+    scopeQ = true; scopeA = true; syncScopeUI();
     $('sTotal').textContent = questions.length;
     $('sKw').textContent = kwList.length;
     $('sUnit').textContent = unitList.length;
@@ -1459,7 +1457,7 @@ function clearKwSection() {
     selected.clear();
     $('kwFilter').value = ''; $('kwFilterClear').style.display = 'none';
     textQuery = ''; $('textSearch').value = ''; $('textSearchClear').style.display = 'none';
-    autoScope(); refreshUI();
+    refreshUI();
 }
 
 function toggleKwBox() {
@@ -1552,36 +1550,36 @@ function renderKwChips() {
     else { info.textContent = `共 ${shown} 个关键词`; info.style.display = ''; }
 }
 
-function toggleKw(w) { if (selected.has(w)) selected.delete(w); else selected.add(w); autoScope(); refreshUI(); }
+function toggleKw(w) { if (selected.has(w)) selected.delete(w); else selected.add(w); refreshUI(); }
 
 function clearAllFilters() {
     selected.clear(); numInput = ''; selUnit = ''; textQuery = '';
     $('numField').value = ''; $('textSearch').value = '';
     $('textSearchClear').style.display = 'none';
     $('kwFilter').value = ''; $('kwFilterClear').style.display = 'none';
-    scopeQ = true; scopeA = true; syncNumUI(); renderUnits(); refreshUI();
+    scopeQ = true; scopeA = true; syncScopeUI(); syncNumUI(); renderUnits(); refreshUI();
 }
 
-function autoScope() {
-    scopeQ = true; scopeA = true;
+function toggleScope(which) {
+    if (which === 'q') scopeQ = !scopeQ;
+    else scopeA = !scopeA;
+    if (!scopeQ && !scopeA) { scopeQ = true; scopeA = true; }
+    syncScopeUI();
+    refreshUI();
 }
 
-function toggleScope(which) { if (which === 'q') scopeQ = !scopeQ; else scopeA = !scopeA; if (!scopeQ && !scopeA) { scopeQ = true; scopeA = true; } refreshUI(); }
+function syncScopeUI() {
+    $('btnScopeQ').classList.toggle('on', scopeQ);
+    $('btnScopeA').classList.toggle('on', scopeA);
+}
 
 function refreshUI() {
-    const bar = $('selBar'), chips = $('selChips'), row = $('scopeRow');
-    const hasActiveFilter = selected.size > 0 || textQuery.trim() || numInput || selUnit;
+    const bar = $('selBar'), chips = $('selChips');
     if (selected.size > 0) {
         bar.style.display = 'block';
         chips.innerHTML = '';
-        for (const w of selected) { const s = document.createElement('span'); s.className = 'sel-chip'; s.textContent = w + ' ✕'; s.addEventListener('click', () => { selected.delete(w); autoScope(); refreshUI(); }); chips.appendChild(s); }
+        for (const w of selected) { const s = document.createElement('span'); s.className = 'sel-chip'; s.textContent = w + ' ✕'; s.addEventListener('click', () => { selected.delete(w); refreshUI(); }); chips.appendChild(s); }
     } else { bar.style.display = 'none'; }
-
-    if (hasActiveFilter) {
-        row.style.display = 'flex';
-        $('btnScopeQ').classList.toggle('on', scopeQ); $('btnScopeA').classList.toggle('on', scopeA);
-        $('scopeHint').textContent = '';
-    } else { row.style.display = 'none'; }
     renderKwChips(); refreshResults();
 }
 
@@ -1596,7 +1594,15 @@ function getFiltered() {
     if (selected.size > 0) {
         const sets = [...selected].map(w => {
             const kw = kwData[w]; if (!kw) return new Set();
-            return new Set(kw.qIds);
+            const wl = w.toLowerCase();
+            const ids = new Set();
+            for (const id of kw.qIds) {
+                const q = questions[id];
+                if (!q) continue;
+                if ((scopeQ && q[1].toLowerCase().includes(wl)) ||
+                    (scopeA && q[2].toLowerCase().includes(wl))) ids.add(id);
+            }
+            return ids;
         });
         let res = new Set(sets[0]);
         for (let i = 1; i < sets.length; i++) res = new Set([...res].filter(x => sets[i].has(x)));
