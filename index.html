@@ -1349,12 +1349,12 @@ function initVoiceRec() {
     voiceRec = new SR();
     voiceRec.lang = 'zh-CN';
     voiceRec.interimResults = true;
-    voiceRec.continuous = true;
-    voiceRec.maxAlternatives = 5;
+    voiceRec.continuous = false;
+    voiceRec.maxAlternatives = 3;
     voiceRec.onresult = function(e) {
         if (!voiceActive) return;
         let interim = '', final = '';
-        for (let i = e.resultIndex; i < e.results.length; i++) {
+        for (let i = 0; i < e.results.length; i++) {
             if (e.results[i].isFinal) {
                 final += voicePickBest(e.results[i]);
             } else {
@@ -1372,12 +1372,21 @@ function initVoiceRec() {
         refreshAll();
     };
     voiceRec.onerror = function(e) {
-        if (e.error === 'not-allowed') alert('请允许麦克风权限后刷新页面，HTTPS 网站只需允许一次');
-        else if (e.error !== 'aborted' && e.error !== 'no-speech') stopVoice();
+        if (e.error === 'not-allowed') {
+            alert('请允许麦克风权限。如果使用非 HTTPS 网站，每次都需要允许。');
+            stopVoice();
+        } else if (e.error === 'no-speech') {
+            // silence — will auto-restart via onend
+        } else if (e.error !== 'aborted') {
+            stopVoice();
+        }
     };
     voiceRec.onend = function() {
         if (voiceActive) {
-            try { voiceRec.start(); } catch { stopVoice(); }
+            setTimeout(function() {
+                if (!voiceActive) return;
+                try { voiceRec.start(); } catch(ex) { stopVoice(); }
+            }, 100);
         }
     };
     return true;
