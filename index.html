@@ -1255,24 +1255,24 @@ function clearTextSearch() {
 
 let voiceRec = null;
 let voiceActive = false;
+let voiceBase = '';
 
-function toggleVoice() {
-    if (voiceActive) { stopVoice(); return; }
+function initVoiceRec() {
+    if (voiceRec) return true;
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SR) { alert('当前浏览器不支持语音输入，请使用 Chrome 或 Safari'); return; }
+    if (!SR) { alert('当前浏览器不支持语音输入，请使用 Chrome 或 Safari'); return false; }
     voiceRec = new SR();
     voiceRec.lang = 'zh-CN';
     voiceRec.interimResults = true;
     voiceRec.continuous = true;
     voiceRec.maxAlternatives = 1;
-    const baseText = $('textSearch').value;
     voiceRec.onresult = function(e) {
         let interim = '', final = '';
         for (let i = e.resultIndex; i < e.results.length; i++) {
             const t = e.results[i][0].transcript;
             if (e.results[i].isFinal) final += t; else interim += t;
         }
-        const combined = (baseText ? baseText + ' ' : '') + final + interim;
+        const combined = (voiceBase ? voiceBase + ' ' : '') + final + interim;
         $('textSearch').value = combined;
         textQuery = combined;
         $('textSearchClear').style.display = combined ? '' : 'none';
@@ -1281,19 +1281,30 @@ function toggleVoice() {
         refreshAll();
     };
     voiceRec.onerror = function(e) {
-        if (e.error === 'not-allowed') alert('请允许麦克风权限');
-        stopVoice();
+        if (e.error === 'not-allowed') alert('请允许麦克风权限后刷新页面，HTTPS 网站只需允许一次');
+        else if (e.error !== 'aborted' && e.error !== 'no-speech') stopVoice();
     };
-    voiceRec.onend = function() { if (voiceActive) stopVoice(); };
-    voiceRec.start();
+    voiceRec.onend = function() {
+        if (voiceActive) {
+            try { voiceRec.start(); } catch { stopVoice(); }
+        }
+    };
+    return true;
+}
+
+function toggleVoice() {
+    if (voiceActive) { stopVoice(); return; }
+    if (!initVoiceRec()) return;
+    voiceBase = $('textSearch').value;
+    try { voiceRec.start(); } catch { voiceRec = null; if (!initVoiceRec()) return; voiceRec.start(); }
     voiceActive = true;
     $('voiceBtn').classList.add('recording');
     $('voiceBtn').title = '点击停止语音输入';
 }
 
 function stopVoice() {
-    if (voiceRec) { try { voiceRec.stop(); } catch {} voiceRec = null; }
     voiceActive = false;
+    if (voiceRec) { try { voiceRec.stop(); } catch {} }
     $('voiceBtn').classList.remove('recording');
     $('voiceBtn').title = '语音输入';
 }
