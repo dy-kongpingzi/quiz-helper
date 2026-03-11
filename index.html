@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>快速答题助手</title>
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2" onerror="window._sbFail=true"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -561,7 +561,10 @@
 <script>
 const SUPABASE_URL = 'https://jsqqphbpwggapmdvkzuw.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpzcXFwaGJwd2dnYXBtZHZrenV3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMyMDc0NTAsImV4cCI6MjA4ODc4MzQ1MH0.ZAkT2THlYWzKLtow3MR06e8a4fzJcsOGx5RSgu0vD6c';
-const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+let sb = null;
+try {
+    if (window.supabase && !window._sbFail) sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+} catch(e) { sb = null; }
 
 const STORE_KEY = 'quiz-helper-qs';
 const KW_CUSTOM_KEY = 'quiz-helper-kw-custom';
@@ -829,40 +832,51 @@ async function init() {
     $('kwImportModal').addEventListener('click', e => { if (e.target === $('kwImportModal')) $('kwImportModal').classList.remove('open'); });
 
     let loaded = false;
-    try {
-        const cloudData = await loadStoreCloud();
-        const cloudKw = await loadCustomKwCloud();
-        if (cloudData && cloudData.length > 0) {
-            questions = cloudData;
-            saveStoreLocal();
-            if (cloudKw && Object.keys(cloudKw).length > 0) {
-                customKw = cloudKw;
-                try { localStorage.setItem(KW_CUSTOM_KEY, JSON.stringify(customKw)); } catch {}
-            }
-            loaded = true;
-            $('cloudBadge').textContent = '☁️ 云端已连接';
-        } else {
-            const localData = loadStoreLocal();
-            if (localData && localData.length > 0) {
-                questions = localData;
-                showSync('syncing', '正在上传本地数据到云端...');
-                await saveStoreCloud();
-                const localKw = loadCustomKw();
-                if (localKw && Object.keys(localKw).length > 0) {
-                    customKw = localKw;
-                    await saveCustomKwCloud();
+    if (sb) {
+        try {
+            const cloudData = await loadStoreCloud();
+            const cloudKw = await loadCustomKwCloud();
+            if (cloudData && cloudData.length > 0) {
+                questions = cloudData;
+                saveStoreLocal();
+                if (cloudKw && Object.keys(cloudKw).length > 0) {
+                    customKw = cloudKw;
+                    try { localStorage.setItem(KW_CUSTOM_KEY, JSON.stringify(customKw)); } catch {}
                 }
-                showSync('success', '本地数据已上传到云端');
                 loaded = true;
                 $('cloudBadge').textContent = '☁️ 云端已连接';
+            } else {
+                const localData = loadStoreLocal();
+                if (localData && localData.length > 0) {
+                    questions = localData;
+                    showSync('syncing', '正在上传本地数据到云端...');
+                    await saveStoreCloud();
+                    const localKw = loadCustomKw();
+                    if (localKw && Object.keys(localKw).length > 0) {
+                        customKw = localKw;
+                        await saveCustomKwCloud();
+                    }
+                    showSync('success', '本地数据已上传到云端');
+                    loaded = true;
+                    $('cloudBadge').textContent = '☁️ 云端已连接';
+                }
             }
+        } catch (err) {
+            const localData = loadStoreLocal();
+            if (localData && localData.length > 0) { questions = localData; loaded = true; }
+            $('cloudBadge').textContent = '⚠️ 离线模式';
+            $('cloudBadge').className = 'cloud-badge offline';
+            showSync('offline', '云端连接失败，使用本地数据');
         }
-    } catch (err) {
+    } else {
         const localData = loadStoreLocal();
-        if (localData && localData.length > 0) { questions = localData; loaded = true; }
-        $('cloudBadge').textContent = '⚠️ 离线模式';
+        if (localData && localData.length > 0) {
+            questions = localData;
+            customKw = loadCustomKw();
+            loaded = true;
+        }
+        $('cloudBadge').textContent = '📱 本地模式';
         $('cloudBadge').className = 'cloud-badge offline';
-        showSync('offline', '云端连接失败，使用本地数据');
     }
 
     $('loadingOverlay').style.display = 'none';
@@ -887,6 +901,7 @@ function loadStoreLocal() {
 function saveStoreLocal() { try { localStorage.setItem(STORE_KEY, JSON.stringify(questions)); } catch {} }
 
 async function loadStoreCloud() {
+    if (!sb) return null;
     try {
         const { data, error } = await sb.from('app_data').select('value').eq('key', 'questions').single();
         if (error || !data) return null;
@@ -896,6 +911,7 @@ async function loadStoreCloud() {
 
 let _saveQTimer = null;
 async function saveStoreCloud() {
+    if (!sb) return;
     try {
         await sb.from('app_data').upsert({ key: 'questions', value: questions, updated_at: new Date().toISOString() });
     } catch {}
@@ -903,11 +919,13 @@ async function saveStoreCloud() {
 
 function saveStore() {
     saveStoreLocal();
+    if (!sb) return;
     if (_saveQTimer) clearTimeout(_saveQTimer);
     _saveQTimer = setTimeout(() => { showSync('syncing', '正在同步题库...'); saveStoreCloud().then(() => showSync('success', '题库已同步')).catch(() => showSync('error', '同步失败')); }, 800);
 }
 
 async function loadCustomKwCloud() {
+    if (!sb) return {};
     try {
         const { data, error } = await sb.from('app_data').select('value').eq('key', 'custom_kw').single();
         if (error || !data) return {};
@@ -917,6 +935,7 @@ async function loadCustomKwCloud() {
 
 let _saveKwTimer = null;
 async function saveCustomKwCloud() {
+    if (!sb) return;
     try {
         await sb.from('app_data').upsert({ key: 'custom_kw', value: customKw, updated_at: new Date().toISOString() });
     } catch {}
@@ -1834,8 +1853,8 @@ function clearAllData() {
     if (!confirm('确定清空所有题目吗？此操作不可恢复（包括云端数据）。')) return;
     questions = []; localStorage.removeItem(STORE_KEY);
     customKw = {}; localStorage.removeItem(KW_CUSTOM_KEY);
-    sb.from('app_data').delete().eq('key', 'questions').then(() => {});
-    sb.from('app_data').delete().eq('key', 'custom_kw').then(() => {});
+    if (sb) { sb.from('app_data').delete().eq('key', 'questions').then(() => {}); }
+    if (sb) { sb.from('app_data').delete().eq('key', 'custom_kw').then(() => {}); }
     kwData = {}; kwList = []; unitList = []; selected.clear(); numInput = ''; selUnit = ''; textQuery = '';
     $('numField').value = ''; $('textSearch').value = '';
     $('kwFilter').value = ''; $('kwFilterClear').style.display = 'none';
