@@ -49,17 +49,25 @@
 
         .text-search-wrap { position: relative; margin-bottom: 16px; }
         .text-search-wrap input {
-            width: 100%; padding: 11px 36px 11px 16px; border: 2px solid #d0d5dd;
+            width: 100%; padding: 11px 60px 11px 16px; border: 2px solid #d0d5dd;
             border-radius: 12px; font-size: 15px; outline: none; transition: border-color 0.3s;
             background: #fcfcfd;
         }
         .text-search-wrap input:focus { border-color: #409eff; background: #fff; }
         .text-search-wrap input::placeholder { color: #bbb; }
         .text-search-clear {
-            position: absolute; right: 12px; top: 50%; transform: translateY(-50%);
+            position: absolute; right: 38px; top: 50%; transform: translateY(-50%);
             cursor: pointer; color: #c0c4cc; font-size: 16px; display: none; padding: 2px 4px;
         }
         .text-search-clear:hover { color: #f56c6c; }
+        .voice-btn {
+            position: absolute; right: 10px; top: 50%; transform: translateY(-50%);
+            cursor: pointer; color: #c0c4cc; font-size: 18px; padding: 2px 4px;
+            border: none; background: none; transition: color 0.2s; line-height: 1;
+        }
+        .voice-btn:hover { color: #409eff; }
+        .voice-btn.recording { color: #f56c6c; animation: voicePulse 1s infinite; }
+        @keyframes voicePulse { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
 
         .selected-bar { display: none; margin-bottom: 12px; }
         .selected-bar-inner { display: flex; align-items: center; gap: 8px; padding: 8px 14px; background: #ecf5ff; border-radius: 10px; flex-wrap: wrap; }
@@ -334,6 +342,7 @@
         <div class="text-search-wrap">
             <input type="text" id="textSearch" placeholder="输入任意内容搜索（空格分隔多个词，取交集）">
             <span class="text-search-clear" id="textSearchClear" onclick="clearTextSearch()">✕</span>
+            <button class="voice-btn" id="voiceBtn" onclick="toggleVoice()" title="语音输入">🎤</button>
         </div>
 
         <div class="selected-bar" id="selBar">
@@ -1240,6 +1249,53 @@ function clearTextSearch() {
     $('textSearchClear').style.display = 'none';
     $('kwFilter').value = ''; $('kwFilterClear').style.display = 'none';
     refreshAll();
+}
+
+/* ===== Voice Input ===== */
+
+let voiceRec = null;
+let voiceActive = false;
+
+function toggleVoice() {
+    if (voiceActive) { stopVoice(); return; }
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SR) { alert('当前浏览器不支持语音输入，请使用 Chrome 或 Safari'); return; }
+    voiceRec = new SR();
+    voiceRec.lang = 'zh-CN';
+    voiceRec.interimResults = true;
+    voiceRec.continuous = true;
+    voiceRec.maxAlternatives = 1;
+    const baseText = $('textSearch').value;
+    voiceRec.onresult = function(e) {
+        let interim = '', final = '';
+        for (let i = e.resultIndex; i < e.results.length; i++) {
+            const t = e.results[i][0].transcript;
+            if (e.results[i].isFinal) final += t; else interim += t;
+        }
+        const combined = (baseText ? baseText + ' ' : '') + final + interim;
+        $('textSearch').value = combined;
+        textQuery = combined;
+        $('textSearchClear').style.display = combined ? '' : 'none';
+        $('kwFilter').value = combined;
+        $('kwFilterClear').style.display = combined ? '' : 'none';
+        refreshAll();
+    };
+    voiceRec.onerror = function(e) {
+        if (e.error === 'not-allowed') alert('请允许麦克风权限');
+        stopVoice();
+    };
+    voiceRec.onend = function() { if (voiceActive) stopVoice(); };
+    voiceRec.start();
+    voiceActive = true;
+    $('voiceBtn').classList.add('recording');
+    $('voiceBtn').title = '点击停止语音输入';
+}
+
+function stopVoice() {
+    if (voiceRec) { try { voiceRec.stop(); } catch {} voiceRec = null; }
+    voiceActive = false;
+    $('voiceBtn').classList.remove('recording');
+    $('voiceBtn').title = '语音输入';
 }
 
 /* ===== Numpad ===== */
