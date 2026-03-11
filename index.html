@@ -66,8 +66,31 @@
             border: none; background: none; transition: color 0.2s; line-height: 1;
         }
         .voice-btn:hover { color: #409eff; }
-        .voice-btn.recording { color: #f56c6c; animation: voicePulse 1s infinite; }
-        @keyframes voicePulse { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
+        .voice-btn.recording { color: #f56c6c; }
+        .voice-indicator {
+            display: none; align-items: center; gap: 10px; padding: 8px 14px;
+            background: linear-gradient(90deg, #fef0f0, #fff5f5); border: 1.5px solid #fbc4c4;
+            border-radius: 10px; margin-top: 8px; animation: viSlideIn 0.2s;
+        }
+        .voice-indicator.on { display: flex; }
+        @keyframes viSlideIn { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: translateY(0); } }
+        .vi-waves { display: flex; align-items: center; gap: 3px; height: 20px; }
+        .vi-bar {
+            width: 3px; background: #f56c6c; border-radius: 2px;
+            animation: viWave 0.8s ease-in-out infinite;
+        }
+        .vi-bar:nth-child(1) { height: 8px; animation-delay: 0s; }
+        .vi-bar:nth-child(2) { height: 14px; animation-delay: 0.15s; }
+        .vi-bar:nth-child(3) { height: 20px; animation-delay: 0.3s; }
+        .vi-bar:nth-child(4) { height: 14px; animation-delay: 0.45s; }
+        .vi-bar:nth-child(5) { height: 8px; animation-delay: 0.6s; }
+        @keyframes viWave {
+            0%, 100% { transform: scaleY(0.4); }
+            50% { transform: scaleY(1); }
+        }
+        .vi-text { font-size: 13px; color: #f56c6c; font-weight: 500; }
+        .vi-stop { padding: 4px 14px; border: 1.5px solid #f56c6c; border-radius: 8px; background: #fff; color: #f56c6c; font-size: 12px; cursor: pointer; margin-left: auto; transition: all 0.2s; }
+        .vi-stop:hover { background: #f56c6c; color: #fff; }
 
         .selected-bar { display: none; margin-bottom: 12px; }
         .selected-bar-inner { display: flex; align-items: center; gap: 8px; padding: 8px 14px; background: #ecf5ff; border-radius: 10px; flex-wrap: wrap; }
@@ -343,6 +366,11 @@
             <input type="text" id="textSearch" placeholder="输入任意内容搜索（空格分隔多个词，取交集）">
             <span class="text-search-clear" id="textSearchClear" onclick="clearTextSearch()">✕</span>
             <button class="voice-btn" id="voiceBtn" onclick="toggleVoice()" title="语音输入">🎤</button>
+        </div>
+        <div class="voice-indicator" id="voiceIndicator">
+            <div class="vi-waves"><div class="vi-bar"></div><div class="vi-bar"></div><div class="vi-bar"></div><div class="vi-bar"></div><div class="vi-bar"></div></div>
+            <span class="vi-text">正在聆听...</span>
+            <button class="vi-stop" onclick="stopVoice()">停止</button>
         </div>
 
         <div class="selected-bar" id="selBar">
@@ -1299,6 +1327,7 @@ function toggleVoice() {
     try { voiceRec.start(); } catch { voiceRec = null; if (!initVoiceRec()) return; voiceRec.start(); }
     voiceActive = true;
     $('voiceBtn').classList.add('recording');
+    $('voiceIndicator').classList.add('on');
     $('voiceBtn').title = '点击停止语音输入';
 }
 
@@ -1306,6 +1335,7 @@ function stopVoice() {
     voiceActive = false;
     if (voiceRec) { try { voiceRec.stop(); } catch {} }
     $('voiceBtn').classList.remove('recording');
+    $('voiceIndicator').classList.remove('on');
     $('voiceBtn').title = '语音输入';
 }
 
