@@ -4,7 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>快速答题助手</title>
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2" onerror="window._sbFail=true"></script>
+    <script src="pinyin-pro.js" onerror="window._pyFail=true"></script>
+    <script src="supabase.min.js" onerror="window._sbFail=true"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -96,6 +97,12 @@
             border-radius: 10px; margin-top: 8px; animation: viSlideIn 0.2s;
         }
         .voice-indicator.on { display: flex; }
+        .voice-indicator.kb-mode { background: linear-gradient(90deg, #ecf5ff, #f0f7ff); border-color: #b3d8ff; }
+        .voice-indicator.kb-mode .vi-waves { display: none; }
+        .voice-indicator.kb-mode .vi-kb-hint { display: flex; }
+        .vi-kb-hint {
+            display: none; align-items: center; gap: 6px; font-size: 22px; line-height: 1;
+        }
         @keyframes viSlideIn { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: translateY(0); } }
         .vi-waves { display: flex; align-items: center; gap: 3px; height: 20px; }
         .vi-bar {
@@ -392,8 +399,9 @@
         </div>
         <div class="voice-indicator" id="voiceIndicator">
             <div class="vi-waves"><div class="vi-bar"></div><div class="vi-bar"></div><div class="vi-bar"></div><div class="vi-bar"></div><div class="vi-bar"></div></div>
-            <span class="vi-text">正在聆听...</span>
-            <button class="vi-stop" onclick="stopVoice()">停止</button>
+            <div class="vi-kb-hint">⌨️</div>
+            <span class="vi-text" id="viText">正在聆听...</span>
+            <button class="vi-stop" onclick="stopVoice()">关闭</button>
         </div>
 
         <div class="selected-bar" id="selBar">
@@ -559,7 +567,9 @@
 </div>
 
 <script>
-const SUPABASE_URL = 'https://jsqqphbpwggapmdvkzuw.supabase.co';
+const SUPABASE_DIRECT = 'https://jsqqphbpwggapmdvkzuw.supabase.co';
+const SUPABASE_PROXY  = '';   // ← 填入你的 Cloudflare 代理域名，例如 'https://api.yourdomain.top'
+const SUPABASE_URL = SUPABASE_PROXY || SUPABASE_DIRECT;
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpzcXFwaGJwd2dnYXBtZHZrenV3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMyMDc0NTAsImV4cCI6MjA4ODc4MzQ1MH0.ZAkT2THlYWzKLtow3MR06e8a4fzJcsOGx5RSgu0vD6c';
 let sb = null;
 try {
@@ -801,6 +811,13 @@ let scopeQ = true, scopeA = false;
 let numInput = '', selUnit = '';
 let textQuery = '';
 let displayCount = 0, currentIdx = [];
+let qPinyinQ = [], qPinyinA = [];
+
+function toPy(str) {
+    if (!str || !window.pinyinPro) return '';
+    try { return pinyinPro.pinyin(str, { toneType: 'none', type: 'array' }).join('').toLowerCase(); }
+    catch { return ''; }
+}
 
 const $ = id => document.getElementById(id);
 
@@ -880,6 +897,25 @@ async function init() {
     }
 
     $('loadingOverlay').style.display = 'none';
+
+    if (!window.pinyinPro && !window._pyFail) {
+        await new Promise(r => setTimeout(r, 500));
+    }
+    if (!window.pinyinPro) {
+        try {
+            await new Promise((resolve, reject) => {
+                const s = document.createElement('script');
+                s.src = 'https://unpkg.com/pinyin-pro@3.26.0/dist/index.js';
+                s.onload = resolve;
+                s.onerror = reject;
+                document.head.appendChild(s);
+            });
+        } catch {}
+    }
+    const pyOk = !!window.pinyinPro;
+    console.log('[quiz-helper] pinyin-pro loaded:', pyOk);
+    $('cloudBadge').textContent += (pyOk ? ' | 🔤拼音纠错' : '');
+
     if (loaded) { rebuildIndex(); updateUploadZone(); }
     else { toggleUpload(); }
 }
@@ -1090,9 +1126,14 @@ function parseCSV(text) {
 const PUNCT_MAP = {'（':'(','）':')','，':',','。':'.','：':':','；':';',
     '？':'?','！':'!','\u201c':'"','\u201d':'"','\u2018':"'",'\u2019':"'",
     '【':'[','】':']','、':',','〈':'<','〉':'>','《':'<','》':'>',
-    '～':'~','—':'-','…':'...'};
+    '～':'~','—':'-','\uFF0D':'-','\u2013':'-','…':'...','\u3000':' '};
 const PUNCT_RE = new RegExp('[' + Object.keys(PUNCT_MAP).join('').replace(/[\[\]\\]/g,'\\$&') + ']', 'g');
-function normPunct(s) { return s.replace(PUNCT_RE, c => PUNCT_MAP[c] || c); }
+function normPunct(s) {
+    return s.replace(PUNCT_RE, c => PUNCT_MAP[c] || c)
+            .replace(/\s*-\s*/g, '-')
+            .replace(/\s+/g, ' ')
+            .trim();
+}
 
 function dedup(rows) {
     const seen = new Map(), uniq = [], dups = [];
@@ -1133,6 +1174,7 @@ function rebuildIndex() {
     $('numField').value = ''; $('textSearch').value = '';
     $('textSearchClear').style.display = 'none';
     scopeQ = true; scopeA = false; syncScopeUI();
+    buildPinyinIndex();
     $('sTotal').textContent = questions.length;
     $('sKw').textContent = kwList.length;
     $('sUnit').textContent = unitList.length;
@@ -1141,6 +1183,13 @@ function rebuildIndex() {
     $('kwCard').style.display = 'block';
     renderResults(allIdx());
     $('resCard').style.display = 'block';
+}
+
+function buildPinyinIndex() {
+    if (!window.pinyinPro) { qPinyinQ = []; qPinyinA = []; return; }
+    for (const kw of kwList) { kw.py = toPy(kw.word); }
+    qPinyinQ = questions.map(q => toPy(q[1]));
+    qPinyinA = questions.map(q => toPy(q[2]));
 }
 
 /* ===== Pinyin Initial ===== */
@@ -1341,7 +1390,7 @@ function extractUnits(qs) {
 
 function onTextSearchInput(e) {
     textQuery = e.target.value;
-    voiceUsed = false;
+    voiceUsed = voiceActive && voiceMode === 'kb';
     $('textSearchClear').style.display = textQuery ? '' : 'none';
     $('kwFilter').value = textQuery;
     $('kwFilterClear').style.display = textQuery ? '' : 'none';
@@ -1362,6 +1411,7 @@ let voiceBase = '';
 let voiceUsed = false;
 let voiceGotResult = false;
 let voiceTimeout = null;
+let voiceMode = '';   // 'api' = Web Speech API, 'kb' = keyboard voice
 
 const isMobile = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
 
@@ -1376,7 +1426,7 @@ function initVoiceRec() {
         voiceRec.continuous = false;
         voiceRec.maxAlternatives = 3;
         voiceRec.onresult = function(e) {
-            if (!voiceActive) return;
+            if (!voiceActive || voiceMode !== 'api') return;
             voiceGotResult = true;
             if (voiceTimeout) { clearTimeout(voiceTimeout); voiceTimeout = null; }
             let interim = '', final = '';
@@ -1399,22 +1449,18 @@ function initVoiceRec() {
         };
         voiceRec.onerror = function(e) {
             if (e.error === 'not-allowed') {
-                stopVoice();
-                voiceFallbackToKeyboard('请允许麦克风权限，或使用键盘自带的语音输入 🎙');
+                switchToKbVoice();
             } else if (e.error === 'no-speech') {
                 // will restart via onend
             } else if (e.error !== 'aborted') {
-                if (!voiceGotResult) {
-                    stopVoice();
-                    voiceFallbackToKeyboard('语音识别不可用，请使用键盘自带的语音输入 🎙');
-                }
+                if (!voiceGotResult) switchToKbVoice();
             }
         };
         voiceRec.onend = function() {
-            if (voiceActive) {
+            if (voiceActive && voiceMode === 'api') {
                 setTimeout(function() {
-                    if (!voiceActive) return;
-                    try { voiceRec.start(); } catch(ex) { stopVoice(); }
+                    if (!voiceActive || voiceMode !== 'api') return;
+                    try { voiceRec.start(); } catch(ex) { switchToKbVoice(); }
                 }, 100);
             }
         };
@@ -1464,53 +1510,93 @@ function fuzzyIncludes(text, term) {
     return false;
 }
 
-function voiceFallbackToKeyboard(msg) {
-    const el = $('textSearch');
-    el.focus();
-    el.setAttribute('placeholder', msg);
-    setTimeout(function() {
-        el.setAttribute('placeholder', '输入文字或多个词组用空格隔开，或点击右下角 🎙 语音搜索');
-    }, 5000);
+function pinyinFallbackSearch(indices, terms) {
+    const queryPy = terms.map(t => toPy(t)).filter(p => p.length >= 2);
+    console.log('[pinyin-search] queryPy:', queryPy);
+    if (queryPy.length === 0) return [];
+
+    const kwHits = new Set();
+    for (const word in kwData) {
+        const py = kwData[word].py || (kwData[word].py = toPy(word));
+        if (!py) continue;
+        if (queryPy.some(qp => py.includes(qp) || qp.includes(py))) {
+            console.log('[pinyin-search] keyword hit:', word, 'py:', py);
+            kwData[word].qIds.forEach(id => kwHits.add(id));
+        }
+    }
+    if (kwHits.size > 0) {
+        const fromKw = indices.filter(i => kwHits.has(i));
+        if (fromKw.length > 0) return fromKw;
+    }
+
+    if (qPinyinQ.length === 0) return [];
+    const fullPy = queryPy.join('');
+    return indices.filter(i => {
+        return (qPinyinQ[i] && qPinyinQ[i].includes(fullPy)) ||
+               (qPinyinA[i] && qPinyinA[i].includes(fullPy));
+    });
+}
+
+function startKbVoice() {
+    voiceActive = true;
+    voiceMode = 'kb';
+    voiceUsed = true;
+    $('fabVoice').classList.add('recording');
+    $('fabVoiceLabel').textContent = '关闭';
+    const vi = $('voiceIndicator');
+    vi.classList.add('on', 'kb-mode');
+    $('viText').textContent = '请点击键盘上的 🎤 语音输入，说完自动搜索';
+    $('textSearch').focus();
+}
+
+function switchToKbVoice() {
+    if (voiceRec) { try { voiceRec.stop(); } catch {} }
+    voiceMode = 'kb';
+    const vi = $('voiceIndicator');
+    vi.classList.add('kb-mode');
+    $('viText').textContent = '语音识别服务不可用，请点击键盘 🎤 语音输入';
+    $('textSearch').focus();
 }
 
 function toggleVoice() {
     if (voiceActive) { stopVoice(); return; }
 
-    if (isMobile && !initVoiceRec()) {
-        voiceFallbackToKeyboard('请点击键盘上的 🎙 按钮进行语音输入');
+    if (isMobile) {
+        startKbVoice();
         return;
     }
-    if (!isMobile && !initVoiceRec()) {
-        alert('当前浏览器不支持语音输入，请使用 Chrome 或 Edge');
+
+    if (!initVoiceRec()) {
+        startKbVoice();
         return;
     }
 
     voiceBase = $('textSearch').value;
     voiceGotResult = false;
+    voiceMode = 'api';
     try { voiceRec.start(); } catch {
         voiceRec = null;
-        if (!initVoiceRec()) {
-            if (isMobile) voiceFallbackToKeyboard('请点击键盘上的 🎙 按钮进行语音输入');
-            else alert('语音输入启动失败');
-            return;
-        }
-        try { voiceRec.start(); } catch { voiceFallbackToKeyboard('语音启动失败，请用键盘语音输入'); return; }
+        if (!initVoiceRec()) { startKbVoice(); return; }
+        try { voiceRec.start(); } catch { startKbVoice(); return; }
     }
     voiceActive = true;
     $('fabVoice').classList.add('recording');
     $('fabVoiceLabel').textContent = '停止';
-    $('voiceIndicator').classList.add('on');
+    const vi = $('voiceIndicator');
+    vi.classList.add('on');
+    vi.classList.remove('kb-mode');
+    $('viText').textContent = '正在聆听...';
 
     voiceTimeout = setTimeout(function() {
         if (voiceActive && !voiceGotResult) {
-            stopVoice();
-            voiceFallbackToKeyboard('未检测到语音，请使用键盘上的 🎙 按钮语音输入');
+            switchToKbVoice();
         }
-    }, 4000);
+    }, 3000);
 }
 
 function stopVoice() {
     voiceActive = false;
+    voiceMode = '';
     if (voiceTimeout) { clearTimeout(voiceTimeout); voiceTimeout = null; }
     const snap = $('textSearch').value;
     voiceBase = snap;
@@ -1518,7 +1604,8 @@ function stopVoice() {
     if (voiceRec) { try { voiceRec.stop(); } catch {} }
     $('fabVoice').classList.remove('recording');
     $('fabVoiceLabel').textContent = '语音';
-    $('voiceIndicator').classList.remove('on');
+    const vi = $('voiceIndicator');
+    vi.classList.remove('on', 'kb-mode');
     $('textSearch').value = snap;
     textQuery = snap;
     $('textSearchClear').style.display = snap ? '' : 'none';
@@ -1729,6 +1816,9 @@ function getFiltered() {
                 return terms.every(t => (scopeQ && fuzzyIncludes(qL, t)) || (scopeA && fuzzyIncludes(aL, t)));
             });
         }
+        if (filtered.length === 0 && window.pinyinPro) {
+            filtered = pinyinFallbackSearch(indices, terms);
+        }
         indices = filtered;
     }
 
@@ -1808,11 +1898,16 @@ function buildNumRe() {
 
 function allIdx() { return questions.map((_, i) => i); }
 
-function renderResults(indices) {
+function renderResults(indices, keepCount) {
     currentIdx = indices; displayCount = 0;
     $('qList').innerHTML = ''; $('resCnt').textContent = `共 ${indices.length} 题`;
     if (indices.length === 0) { $('qList').innerHTML = '<div class="no-result">没有匹配的题目</div>'; $('loadMore').style.display = 'none'; return; }
-    loadMore();
+    const target = keepCount ? Math.max(keepCount, PAGE) : PAGE;
+    const end = Math.min(target, currentIdx.length);
+    const frag = document.createDocumentFragment();
+    for (let i = 0; i < end; i++) frag.appendChild(buildCard(currentIdx[i]));
+    $('qList').appendChild(frag); displayCount = end;
+    $('loadMore').style.display = displayCount < currentIdx.length ? 'block' : 'none';
 }
 
 function loadMore() {
@@ -2050,9 +2145,12 @@ function edSave() {
 
     cleanEmptyKw();
 
+    const prevCount = displayCount;
+    const prevScroll = document.documentElement.scrollTop || document.body.scrollTop;
     closeEditor();
     renderKwChips();
-    refreshResults();
+    renderResults(getFiltered(), prevCount);
+    requestAnimationFrame(() => window.scrollTo(0, prevScroll));
 }
 
 function edDelete() {
@@ -2081,11 +2179,14 @@ function edDelete() {
     $('sKw').textContent = kwList.length;
     $('sUnit').textContent = unitList.length;
 
+    const prevCount = displayCount;
+    const prevScroll = document.documentElement.scrollTop || document.body.scrollTop;
     closeEditor();
     selected.clear();
     renderKwChips(); renderUnits(); syncNumUI();
-    renderResults(getFiltered());
+    renderResults(getFiltered(), prevCount);
     updateUploadZone();
+    requestAnimationFrame(() => window.scrollTo(0, prevScroll));
 }
 
 /* ===== Keyword Manager ===== */
